@@ -1,6 +1,5 @@
 import fastapi
 import fastapi.middleware.gzip
-import uvicorn
 
 import src.api.validation_router
 
