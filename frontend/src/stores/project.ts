@@ -173,6 +173,22 @@ function loadVariants(): Variant[] {
   }
 }
 
+/**
+ * Идентификатор варианта.
+ *
+ * crypto.randomUUID() существует только в защищённом контексте — HTTPS или
+ * localhost. На демо-стенде по обычному http его нет, и сохранение варианта
+ * падало с «crypto.randomUUID is not a function». Уникальность нужна только
+ * внутри одной вкладки, так что запасной вариант из времени и случайного
+ * хвоста полностью достаточен.
+ */
+function variantId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `v-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 /** Следующий незанятый номер: номера не переиспользуются после удаления. */
 function nextSeq(variants: Variant[]): number {
   return variants.reduce((m, v) => Math.max(m, v.seq ?? 0), 0) + 1
@@ -441,7 +457,7 @@ export const useProject = create<ProjectState>((set, get) => ({
     if (!scenario || !result || stale) return
     const seq = nextSeq(variants)
     const v: Variant = {
-      id: crypto.randomUUID(),
+      id: variantId(),
       label: label?.trim() || `Вариант ${seq}`,
       seq,
       scenario: structuredClone(scenario) as Scenario,
