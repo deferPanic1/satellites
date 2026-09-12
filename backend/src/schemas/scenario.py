@@ -13,12 +13,12 @@ class OptimizationCriteriaEnum(enum.StrEnum):
 
 
 class Scenario(msgspec.Struct):
-    optimization_criteria: OptimizationCriteriaEnum
+    optimization_criteria: OptimizationCriteriaEnum | None
     schema_version: str | None
     meta: dict | None
     environment: src.schemas.environment.Environment
     design: src.schemas.plane.Design
-    failures: src.schemas.satelite.Satelites
+    failures: list[src.schemas.satelite.FailedSatelite]
     gateway_outages: list
 
 

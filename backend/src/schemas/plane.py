@@ -9,11 +9,7 @@ class Plane(msgspec.Struct):
     phase_deg: float
 
 
-class Planes(msgspec.Struct):
-    planes: list[Plane]
-
-
-class Design:
+class Design(msgspec.Struct):
     launch_stage: int
-    planes: Planes
-    satelites: src.schemas.satelite.Satelite
+    planes: list[Plane]
+    satellites: list[src.schemas.satelite.Satelite]
