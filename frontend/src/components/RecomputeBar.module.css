@@ -1,0 +1,40 @@
+.bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: rgba(251, 191, 36, 0.1);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.35);
+  flex-shrink: 0;
+}
+.left {
+  min-width: 0;
+}
+.title {
+  font-size: 0.8rem;
+  color: #fcd34d;
+}
+.changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+.chip {
+  padding: 0.1rem 0.45rem;
+  border-radius: 5px;
+  background: rgba(148, 163, 184, 0.14);
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+  color: #e2e8f0;
+}
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}

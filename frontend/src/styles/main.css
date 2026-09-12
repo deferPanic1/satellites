@@ -1,0 +1,60 @@
+:root {
+  color-scheme: dark;
+  --bg: #05070d;
+  --panel: #0b1220;
+  --line: rgba(148, 163, 184, 0.16);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Тонкие скроллбары — панели узкие, стандартные съедают место */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Cesium рисует свой фон; убираем белую вспышку при загрузке */
+.cesium-viewer,
+.cesium-widget,
+.cesium-widget canvas {
+  background: var(--bg) !important;
+}
+
+.cesium-viewer-bottom {
+  display: none;
+}
+
+/* Mantine рисует фон сама; приводим к палитре проекта */
+body {
+  --mantine-color-body: var(--bg);
+}

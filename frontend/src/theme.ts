@@ -1,0 +1,49 @@
+import { createTheme, type MantineColorsTuple } from '@mantine/core'
+
+/**
+ * Палитра повторяет прежнюю (Aura dark): рядом с чёрным космосом
+ * светлая тема выглядит плохо, поэтому тёмная принудительно.
+ */
+const sky: MantineColorsTuple = [
+  '#e0f4ff',
+  '#cbe6f9',
+  '#9acaf1',
+  '#64ade9',
+  '#3b95e2',
+  '#2186de',
+  '#0b7edd',
+  '#006dc4',
+  '#0061b0',
+  '#00539b',
+]
+
+const dark: MantineColorsTuple = [
+  '#e2e8f0',
+  '#cbd5e1',
+  '#94a3b8',
+  '#64748b',
+  '#475569',
+  '#334155',
+  '#131c2e',
+  '#0b1220',
+  '#070c16',
+  '#05070d',
+]
+
+export const theme = createTheme({
+  primaryColor: 'sky',
+  primaryShade: { dark: 4 },
+  colors: { sky, dark },
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSizes: { xs: '0.72rem', sm: '0.78rem', md: '0.85rem', lg: '1rem', xl: '1.15rem' },
+  defaultRadius: 'sm',
+  components: {
+    Button: { defaultProps: { size: 'xs' } },
+    Select: { defaultProps: { size: 'xs', comboboxProps: { withinPortal: true } } },
+    NumberInput: { defaultProps: { size: 'xs' } },
+    SegmentedControl: { defaultProps: { size: 'xs' } },
+    Badge: { defaultProps: { size: 'sm', tt: 'none' } },
+  },
+})

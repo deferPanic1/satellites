@@ -1,0 +1,46 @@
+[
+  {
+    "id": "01_full_constellation",
+    "title": "Полная группировка",
+    "n_satellites": 48,
+    "n_planes": 3,
+    "n_clients": 3,
+    "n_gateways": 1,
+    "launch_stage": 3,
+    "isl_range_km": 3000.0,
+    "n_failures": 0
+  },
+  {
+    "id": "02_first_launch",
+    "title": "Первая очередь запуска",
+    "n_satellites": 48,
+    "n_planes": 3,
+    "n_clients": 3,
+    "n_gateways": 1,
+    "launch_stage": 1,
+    "isl_range_km": 3000.0,
+    "n_failures": 0
+  },
+  {
+    "id": "03_satellite_outages",
+    "title": "Недоступность десяти аппаратов",
+    "n_satellites": 48,
+    "n_planes": 3,
+    "n_clients": 3,
+    "n_gateways": 1,
+    "launch_stage": 3,
+    "isl_range_km": 3000.0,
+    "n_failures": 10
+  },
+  {
+    "id": "04_link_range",
+    "title": "Дальность межспутниковой связи 2000 км",
+    "n_satellites": 48,
+    "n_planes": 3,
+    "n_clients": 3,
+    "n_gateways": 1,
+    "launch_stage": 3,
+    "isl_range_km": 2000.0,
+    "n_failures": 0
+  }
+]

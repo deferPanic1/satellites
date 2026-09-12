@@ -1,0 +1,302 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.logo {
+  font-size: 1.5rem;
+  color: #38bdf8;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.brand p {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #64748b;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.notice {
+  padding: 0.4rem 1rem;
+  background: rgba(56, 189, 248, 0.12);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
+  font-size: 0.78rem;
+}
+
+/* Ширины колонок — переменные: свёрнутая панель подменяет свою на ширину рейки,
+   поэтому анимация и адаптив описываются в одном месте. */
+.main {
+  flex: 1;
+  display: grid;
+  --rail: 2.75rem;
+  --left-full: 19rem;
+  --right-full: 24rem;
+  --left: var(--left-full);
+  --right: var(--right-full);
+  grid-template-columns: var(--left) 1fr var(--right);
+  min-height: 0;
+  transition: grid-template-columns 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.main[data-left='collapsed'] {
+  --left: var(--rail);
+}
+.main[data-right='collapsed'] {
+  --right: var(--rail);
+}
+.aside {
+  position: relative;
+  background: var(--panel);
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.left {
+  border-right: 1px solid var(--line);
+}
+.right {
+  border-left: 1px solid var(--line);
+}
+
+/* Содержимое держит свою ширину и подрезается панелью: при сворачивании
+   панель уезжает целиком, а не пересобирает вёрстку на каждом кадре. */
+.asideBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.14s ease 0.06s;
+}
+.asideBody > * {
+  flex: 1;
+  min-height: 0;
+}
+.left .asideBody {
+  min-width: var(--left-full);
+}
+.right .asideBody {
+  min-width: var(--right-full);
+}
+.aside[data-collapsed] .asideBody {
+  opacity: 0;
+  pointer-events: none;
+  transition-delay: 0s;
+}
+
+/* Рейка свёрнутой панели: видно, что именно спрятано, и куда нажать */
+.rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--rail);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.25rem;
+  background: var(--panel);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+  z-index: 2;
+}
+.left .rail {
+  left: 0;
+}
+.right .rail {
+  right: 0;
+}
+.aside[data-collapsed] .rail {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.08s;
+}
+.railBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.railBtn:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text);
+}
+.railLabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Язычки на кромках центра: свернуть панель, не уводя курсор далеко.
+   На краю самой панели они перекрывали бы полосу прокрутки.
+   Оформление — как у остальных накладок над глобусом (слои, легенда). */
+.edge {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(8, 12, 22, 0.82);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+  color: #cbd5e1;
+  cursor: pointer;
+  z-index: 8;
+  transition:
+    opacity 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.edgeLeft {
+  left: 0;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+.edgeRight {
+  right: 0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+.edge:hover {
+  background: rgba(12, 22, 40, 0.95);
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #e2e8f0;
+  box-shadow: 0 2px 16px rgba(56, 189, 248, 0.25);
+}
+.edge:focus-visible {
+  outline: 1px solid #38bdf8;
+  outline-offset: 1px;
+}
+/* панель уже свёрнута — за раскрытие отвечает рейка */
+.main[data-left='collapsed'] .edgeLeft,
+.main[data-right='collapsed'] .edgeRight {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.tabPanel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.center > :first-child {
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 1400px) {
+  .main {
+    --left-full: 17rem;
+    --right-full: 20rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .main,
+  .asideBody,
+  .rail,
+  .edge {
+    transition: none;
+  }
+}
+
+/* стартовый экран: пока сценарий не загружен, считать нечего */
+.start {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 2rem;
+  text-align: center;
+}
+.startLogo {
+  font-size: 3rem;
+  color: #38bdf8;
+  line-height: 1;
+}
+.start h2 {
+  margin: 0.6rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.start > p {
+  margin: 0;
+  max-width: 34rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.startActions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 1.1rem;
+}
+.startHint {
+  margin: 0.9rem 0 0;
+  font-size: 0.72rem;
+  color: #475569;
+}
+.startMessages {
+  display: grid;
+  gap: 0.5rem;
+  width: min(34rem, 100%);
+  margin-top: 0.8rem;
+  text-align: left;
+}
