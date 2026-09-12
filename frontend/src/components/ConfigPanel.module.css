@@ -1,0 +1,99 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem;
+  overflow-y: auto;
+  height: 100%;
+}
+.empty {
+  color: #94a3b8;
+  align-items: center;
+  justify-content: center;
+}
+.panel h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+.panel label {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin: 0.5rem 0 0.25rem;
+}
+.plane {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+.planeHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin: 0.4rem 0 0;
+}
+.failForm {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.grow {
+  flex: 1 1 100%;
+}
+.outages {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.outages li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+}
+.outages .hint {
+  margin: 0;
+  flex: 1;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+}
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.78rem;
+}
+.facts dt {
+  color: #64748b;
+}
+.facts dd {
+  margin: 0;
+  color: #e2e8f0;
+  text-align: right;
+}
+
+/* строка «подпись — значение» над ползунком параметра связи */
+.inline {
+  margin: 0;
+}
+.value {
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  font-family: ui-monospace, monospace;
+}
+.changed {
+  /* без отрицательного отступа: под ползунком стоят подписи меток шкалы */
+  margin: 0 0 0.9rem;
+  font-size: 0.72rem;
+  color: #fbbf24;
+}
