@@ -45,7 +45,7 @@ def edges2list_con(
 class ProcessedClient:
     id_client: str
     is_connected: bool
-    optimal_path: list[Vertex]
+    optimal_path: list[Vertex] | None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -85,6 +85,18 @@ def get_min_hopes_stat(
         vertex2min_hops[vertex] = hops
         for next_vertex in d[vertex]:
             deque.append((next_vertex, hops + 1))
+
+    # clients = [
+    #     vertex
+    #     for vertex in vertexes
+    #     if vertex.type_vertex == VertexType.client
+    # ]
+    # for now_client in clients:
+    #     optimal_path: list[Vertex] = [now_client]
+    #     now_vertex = now_client
+    #     while now_vertex.type_vertex != 
+    #     for _ in range(vertex2min_hops[now_client]):
+    #         for next_vertex in d[]
 
     return [
         HopesProcessedClient(
