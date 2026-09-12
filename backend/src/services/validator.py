@@ -1,24 +1,42 @@
-import msgspec
+"""
+Валидация сценария. Проверки живут в geometry.py от организаторов —
+здесь только приведение их результата к формату ответа из openapi.yaml.
+"""
 
-import src.services.geometry
-import src.schemas.scenario
+from __future__ import annotations
 
-
-
-class ValidationResponse(msgspec.Struct):
-    is_valid: bool
-    scenario: src.schemas.scenario.Scenario | None
-    errors: list
+import src.schemas.result as result_schemas
+from src.services import geometry, simulation
 
 
-def validate_scenario(
-    scenario: src.schemas.scenario.Scenario,
-) -> ValidationResponse:
-    errors: list[src.services.geometry.ValidationError] = (
-        src.services.geometry.validate(scenario)
+def validate_scenario(scenario: object) -> result_schemas.ValidationReport:
+    """
+    Некорректный сценарий — нормальный результат, а не ошибка протокола:
+    отдаётся с HTTP 200 и valid=false. Возвращаются ВСЕ найденные ошибки.
+    """
+    errors = [
+        result_schemas.FieldError(
+            path=error['path'],
+            code=error['code'],
+            message=error['message'],
+            value=error.get('value'),
         )
-    return ValidationResponse(
-        is_valid=not bool(errors),
+        for error in geometry.validate(scenario)
+    ]
+
+    if errors or not isinstance(scenario, dict):
+        return result_schemas.ValidationReport(
+            valid=False,
+            scenario=None,
+            summary=None,
+            errors=errors,
+            warnings=[],
+        )
+
+    return result_schemas.ValidationReport(
+        valid=True,
         scenario=scenario,
-        errors=errors,
+        summary=simulation.scenario_summary(scenario),
+        errors=[],
+        warnings=[],
     )
