@@ -1,28 +1,9 @@
-import enum
-
 import msgspec
-
-import src.schemas.environment
-import src.schemas.plane
-import src.schemas.satelite
-
-
-class OptimizationCriteriaEnum(enum.StrEnum):
-    MIN_HOPS = 'min_hops'
-    MIN_DISTANCE = 'min_distance'
-
-
-class Scenario(msgspec.Struct):
-    optimization_criteria: OptimizationCriteriaEnum | None
-    schema_version: str | None
-    meta: dict | None
-    environment: src.schemas.environment.Environment
-    design: src.schemas.plane.Design
-    failures: list[src.schemas.satelite.FailedSatelite]
-    gateway_outages: list
 
 
 class ScenarioListItem(msgspec.Struct):
+    """Карточка сценария в списке набора кейса: метаданные без содержимого."""
+
     id: str
     title: str
     n_satellites: int | None = None
@@ -32,47 +13,3 @@ class ScenarioListItem(msgspec.Struct):
     launch_stage: int | None = None
     isl_range_km: float | None = None
     n_failures: int | None = None
-
-
-class Timestamp(msgspec.Struct):
-    t_s: int
-    snapshot: ScenarioListItem
-
-
-# class ScenarioSummary(msgspec.Struct):
-#     n_active_satellites: int
-#     n_satellites: int
-#     n_planes: int
-#     n_clients: int
-#     n_gateways: int
-#     n_steps: int
-#     launch_stage: int
-
-
-# class FieldError(msgspec.Struct):
-#     path: str
-#     code: typing.Literal[
-#         'malformed_json',
-#         'unsupported_schema_version',
-#         'missing_field',
-#         'wrong_type',
-#         'non_finite_value',
-#         'out_of_range',
-#         'duplicate_id',
-#         'unresolved_reference',
-#         'invalid_time_grid',
-#         'outage_outside_horizon',
-#         'outage_nonpositive_duration',
-#         'client_or_gateway_missing',
-#         'node_id_collision',
-#     ]
-#     message: str
-#     value: str | None
-
-
-# class ValidationReport(msgspec.Struct):
-#     valid: bool
-#     scenario: Scenario | None
-#     summary: list[ScenarioSummary] | None
-#     errors: list[FieldError]
-#     warnings: list[FieldError]

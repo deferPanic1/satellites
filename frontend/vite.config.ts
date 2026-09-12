@@ -7,10 +7,19 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Используется только в сборке с VITE_API_MODE=remote.
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.VITE_API_TARGET ?? 'http://127.0.0.1:8000',
         changeOrigin: true,
+        // Бэкенд не поднят — vite по умолчанию отвечает 500, и клиент
+        // принимает это за настоящую ошибку сервера. Отдаём 502: по нему
+        // клиент понимает, что бэкенда нет, и считает локально.
+        configure(proxy) {
+          proxy.on('error', (_error, _request, response) => {
+            if (!('writeHead' in response) || response.headersSent) return
+            response.writeHead(502, { 'Content-Type': 'application/json' })
+            response.end('{"detail":"Бэкенд не отвечает"}')
+          })
+        },
       },
     },
   },

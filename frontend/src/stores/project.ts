@@ -13,6 +13,7 @@
 
 import { create } from 'zustand'
 import * as api from '../api/client'
+import { variantLabelOf } from '../lib/resultExport'
 import {
   isSimulateResponse,
   type ClientMetrics,
@@ -21,6 +22,7 @@ import {
   type OutageReason,
   type RoutingMode,
   type Scenario,
+  type ScenarioListItem,
   type SimulateResponse,
   type StepState,
   type Variant,
@@ -39,6 +41,16 @@ export interface PendingChange {
   what: string
   from?: string
   to?: string
+  /**
+   * 'value'  — поле поменяло значение (RAAN, порог, очередь);
+   * 'add'    — в список добавлен период недоступности;
+   * 'remove' — период удалён.
+   *
+   * Различие нужно, чтобы правки схлопывались: добавить отказ и тут же снять
+   * его — это не две правки, а ни одной. Раньше каждое действие получало
+   * уникальный ключ и оставалось в списке навсегда.
+   */
+  kind: 'value' | 'add' | 'remove'
 }
 
 interface Derived {
@@ -90,9 +102,6 @@ export interface ProjectState extends Derived {
   committedRouting: RoutingMode | null
   pending: Record<string, PendingChange>
   stale: boolean
-  /** результат предыдущего расчёта — для дельт «стало / было» */
-  previousResult: SimulateResponse | null
-
   busy: boolean
   errors: FieldError[]
   warnings: FieldError[]
@@ -103,6 +112,9 @@ export interface ProjectState extends Derived {
   selectedClient: string | null
   selectedSat: string | null
 
+  /** Набор кейса, как его отдаёт сервер. Пустой, пока список не загружен. */
+  builtins: ScenarioListItem[]
+
   // ---- чтение ----
   stepAt(i: number): StepState | null
   routeAt(i: number, clientId?: string | null): string[] | null
@@ -110,8 +122,10 @@ export interface ProjectState extends Derived {
   metricsOf(clientId: string): ClientMetrics | null
 
   // ---- действия ----
+  loadBuiltins(): Promise<void>
   loadBuiltin(id: string): Promise<void>
-  loadFile(file: File): Promise<void>
+  /** asVariant: загруженный файл сразу становится сохранённым вариантом */
+  loadFile(file: File, options?: { asVariant?: boolean }): Promise<void>
   run(): Promise<void>
   setRouting(mode: RoutingMode): void
   setSelectedClient(id: string | null): void
@@ -123,8 +137,6 @@ export interface ProjectState extends Derived {
   setLaunchStage(stage: number): void
   addFailure(satelliteId: string, startS: number, endS: number): void
   removeFailure(index: number): void
-  addGatewayOutage(gatewayId: string, startS: number, endS: number): void
-  removeGatewayOutage(index: number): void
   saveVariant(label?: string): void
   restoreVariant(id: string): void
   removeVariant(id: string): void
@@ -168,6 +180,7 @@ function nextSeq(variants: Variant[]): number {
 
 export const useProject = create<ProjectState>((set, get) => ({
   scenario: null,
+  builtins: [],
   result: null,
   variants: loadVariants(),
   compareIds: [],
@@ -179,7 +192,6 @@ export const useProject = create<ProjectState>((set, get) => ({
   committedRouting: null,
   pending: {},
   stale: false,
-  previousResult: null,
 
   busy: false,
   errors: [],
@@ -224,6 +236,19 @@ export const useProject = create<ProjectState>((set, get) => ({
 
   // ---- действия ----
 
+  /**
+   * Список набора кейса приходит с сервера: он знает, какие файлы лежат
+   * в case/Данные, и отдаёт по каждому метаданные. Новый файл появляется
+   * в выборе сам, без правки кода.
+   */
+  async loadBuiltins() {
+    try {
+      set({ builtins: await api.listScenarios() })
+    } catch {
+      /* список необязателен: сценарий можно загрузить своим файлом */
+    }
+  },
+
   async loadBuiltin(id) {
     set({ busy: true })
     try {
@@ -236,7 +261,6 @@ export const useProject = create<ProjectState>((set, get) => ({
         notice: null,
         pending: {},
         stale: false,
-        previousResult: null,
         ...derive(scenario, get().result),
       })
       await get().run()
@@ -247,23 +271,38 @@ export const useProject = create<ProjectState>((set, get) => ({
     }
   },
 
-  async loadFile(file) {
+  async loadFile(file, options) {
     set({ busy: true, errors: [], warnings: [], notice: null })
     try {
       const report = await api.uploadScenario(file)
       set({ errors: report.errors, warnings: report.warnings })
       if (report.valid && report.scenario) {
         const scenario = report.scenario
+        const routing = report.routing ?? get().routing
         set({
           scenario,
+          routing,
           envBaseline: { ...scenario.environment },
-          notice: `Загружен сценарий «${scenario.meta.title}»`,
+          // подпись ставим после расчёта: saveVariant сбрасывает notice
+          notice: null,
           pending: {},
           stale: false,
-          previousResult: null,
           ...derive(scenario, get().result),
         })
         await get().run()
+
+        const label = uniqueLabel(variantLabelOf(scenario) ?? scenario.meta.title, get().variants)
+        const saved = Boolean(options?.asVariant) && Boolean(get().result) && !get().stale
+        if (saved) get().saveVariant(label)
+
+        set({
+          notice: describeLoad(scenario, {
+            fromResult: Boolean(report.fromResult),
+            routing,
+            label,
+            saved,
+          }),
+        })
       }
     } catch (e) {
       set({ errors: [{ path: '$', code: 'request_failed', message: String(e) }] })
@@ -284,7 +323,6 @@ export const useProject = create<ProjectState>((set, get) => ({
         const selected = get().selectedClient
         set({
           result: r,
-          previousResult: get().result,
           committed: structuredClone(scenario) as Scenario,
           committedRouting: routing,
           pending: {},
@@ -368,33 +406,18 @@ export const useProject = create<ProjectState>((set, get) => ({
   },
 
   addFailure(satelliteId, startS, endS) {
-    patch(set, get, (d) => {
-      d.failures.push({ satellite_id: satelliteId, start_s: startS, end_s: endS })
+    addOutage(set, get, {
+      id: satelliteId,
+      startS,
+      endS,
+      what: `Отказ ${satelliteId}`,
+      whatRemoved: `Снят отказ ${satelliteId}`,
+      prefix: 'fail',
     })
-    note(set, get, uniqueKey('fail'), `Отказ ${satelliteId}`, undefined, hours(startS, endS))
   },
 
   removeFailure(index) {
-    const f = get().scenario?.failures[index]
-    patch(set, get, (d) => {
-      d.failures.splice(index, 1)
-    })
-    if (f) note(set, get, uniqueKey('fail'), `Снят отказ ${f.satellite_id}`, undefined, hours(f.start_s, f.end_s))
-  },
-
-  addGatewayOutage(gatewayId, startS, endS) {
-    patch(set, get, (d) => {
-      d.gateway_outages.push({ gateway_id: gatewayId, start_s: startS, end_s: endS })
-    })
-    note(set, get, uniqueKey('gw'), `Отказ шлюза ${gatewayId}`, undefined, hours(startS, endS))
-  },
-
-  removeGatewayOutage(index) {
-    const g = get().scenario?.gateway_outages[index]
-    patch(set, get, (d) => {
-      d.gateway_outages.splice(index, 1)
-    })
-    if (g) note(set, get, uniqueKey('gw'), `Снят отказ шлюза ${g.gateway_id}`, undefined, hours(g.start_s, g.end_s))
+    removeOutage(set, get, index)
   },
 
   revert() {
@@ -431,7 +454,9 @@ export const useProject = create<ProjectState>((set, get) => ({
       // новый вариант сразу попадает в сравнение: его затем и сохраняли
       compareIds: [...compareIds, v.id],
       baseVariantId: baseVariantId ?? v.id,
-      notice: `«${v.label}» сохранён${next.length > 1 ? ' — можно сравнивать' : ''}`,
+      // Счётчик на вкладке «Варианты» уже подтверждает сохранение; отдельный
+      // глобальный баннер занимал место и дублировал эту обратную связь.
+      notice: null,
     })
     persist(next, set)
   },
@@ -447,7 +472,6 @@ export const useProject = create<ProjectState>((set, get) => ({
       committedRouting: v.result.meta.routing ?? get().committedRouting,
       pending: {},
       stale: false,
-      previousResult: null,
       result: v.result,
       notice: `Восстановлен вариант «${v.label}»`,
       ...derive(scenario, v.result),
@@ -530,8 +554,38 @@ export const ROUTING_LABEL: Record<RoutingMode, string> = {
   min_distance: 'мин. дистанция',
 }
 
-let keySeq = 0
-const uniqueKey = (prefix: string) => `${prefix}:${++keySeq}`
+/** Один и тот же файл могут загрузить дважды; одинаковые метки путают сравнение. */
+function uniqueLabel(label: string, variants: Variant[]): string {
+  const taken = new Set(variants.map((v) => v.label))
+  if (!taken.has(label)) return label
+  for (let n = 2; ; n++) {
+    const candidate = `${label} (${n})`
+    if (!taken.has(candidate)) return candidate
+  }
+}
+
+/**
+ * Подпись о загрузке.
+ *
+ * Раньше здесь был только meta.title, а он приходит из файла кейса и не
+ * меняется от правок параметров: любая выгрузка возвращалась под именем
+ * «Полная группировка», и понять, свой ли вариант загрузился, было нельзя.
+ * Поэтому называем сам файл (сценарий или результат эксперимента) и
+ * перечисляем то, что отличает вариант: этап, стратегию, отказы.
+ */
+function describeLoad(
+  scenario: Scenario,
+  info: { fromResult: boolean; routing: RoutingMode; label: string; saved: boolean },
+): string {
+  const parts = [`этап ${scenario.design.launch_stage}`]
+  if (info.fromResult) parts.push(`стратегия «${ROUTING_LABEL[info.routing]}»`)
+  if (scenario.failures.length) parts.push(`отказов: ${scenario.failures.length}`)
+  if (info.saved) parts.push('сохранён как вариант')
+
+  const kind = info.fromResult ? 'результат эксперимента' : 'сценарий'
+  return `Загружен ${kind} «${info.label}» · ${parts.join(' · ')}`
+}
+
 const hours = (a: number, b: number) => `${(a / 3600).toFixed(1)}–${(b / 3600).toFixed(1)} ч`
 
 /**
@@ -545,8 +599,134 @@ function note(set: Setter, get: Getter, key: string, what: string, from?: string
   const existing = pending[key]
   const origin = existing ? existing.from : from
   if (origin !== undefined && origin === to) delete pending[key]
-  else pending[key] = { key, what, from: origin, to }
+  else pending[key] = { key, what, from: origin, to, kind: 'value' }
   set({ pending, stale: Object.keys(pending).length > 0 })
+}
+
+// ---------- периоды недоступности ----------
+
+/**
+ * Ключ периода — это сам период, а не счётчик вызовов.
+ *
+ * Так добавление и снятие одного и того же интервала схлопываются в ноль
+ * правок. С уникальным ключом на каждое действие список правок только
+ * рос: «Отказ S19 0–24 ч», «Отказ S19 12–24 ч», «Снят отказ S19 0–24 ч» —
+ * три записи там, где по факту остался один интервал.
+ */
+const outageKey = (prefix: string, id: string, startS: number, endS: number) =>
+  `${prefix}:${id}:${startS}:${endS}`
+
+/**
+ * Отметить добавление или снятие периода. Противоположные действия по одному
+ * ключу гасят друг друга: снять только что добавленный отказ — это не правка.
+ */
+function noteOutage(
+  pending: Record<string, PendingChange>,
+  key: string,
+  what: string,
+  detail: string,
+  kind: 'add' | 'remove',
+) {
+  const existing = pending[key]
+  if (existing && existing.kind !== kind && existing.kind !== 'value') delete pending[key]
+  else pending[key] = { key, what, to: detail, kind }
+}
+
+interface OutageSpec {
+  id: string
+  startS: number
+  endS: number
+  what: string
+  whatRemoved: string
+  prefix: string
+}
+
+/**
+ * Добавить период недоступности, объединяя его с уже заданными.
+ *
+ * «Пересекающиеся интервалы объединяются по смыслу недоступности» — прямая
+ * цитата из описания данных кейса. Поэтому два периода одного аппарата,
+ * которые перекрываются или соприкасаются, здесь сливаются в один, а не
+ * копятся списком: аппарат не может быть «дважды недоступен».
+ */
+function addOutage(set: Setter, get: Getter, spec: OutageSpec) {
+  const scenario = get().scenario
+  if (!scenario) return
+
+  const horizon = scenario.environment.horizon_s
+  const from = Math.max(0, Math.min(spec.startS, spec.endS))
+  const to = Math.min(horizon, Math.max(spec.startS, spec.endS))
+  if (to <= from) {
+    set({ notice: 'Период недоступности должен начинаться раньше, чем заканчивается' })
+    return
+  }
+
+  // соприкасающиеся тоже сливаем: 0–6 ч и 6–24 ч — это один период 0–24 ч
+  const touching = scenario.failures.filter(
+    (o) => o.satellite_id === spec.id && o.start_s <= to && o.end_s >= from,
+  )
+
+  const mergedStart = Math.min(from, ...touching.map((o) => o.start_s))
+  const mergedEnd = Math.max(to, ...touching.map((o) => o.end_s))
+
+  if (touching.length === 1 && touching[0].start_s === mergedStart && touching[0].end_s === mergedEnd) {
+    set({
+      notice: `${spec.id}: период ${hours(from, to)} уже входит в заданный ${hours(mergedStart, mergedEnd)}`,
+    })
+    return
+  }
+
+  patch(set, get, (d) => {
+    d.failures = d.failures.filter(
+      (o) => !(o.satellite_id === spec.id && o.start_s <= to && o.end_s >= from),
+    )
+    d.failures.push({ satellite_id: spec.id, start_s: mergedStart, end_s: mergedEnd })
+  })
+
+  const pending = { ...get().pending }
+  // поглощённые интервалы исчезают из списка правок, если их добавили здесь же
+  for (const o of touching) {
+    noteOutage(
+      pending,
+      outageKey(spec.prefix, spec.id, o.start_s, o.end_s),
+      spec.whatRemoved,
+      hours(o.start_s, o.end_s),
+      'remove',
+    )
+  }
+  noteOutage(
+    pending,
+    outageKey(spec.prefix, spec.id, mergedStart, mergedEnd),
+    spec.what,
+    hours(mergedStart, mergedEnd),
+    'add',
+  )
+  set({
+    pending,
+    stale: Object.keys(pending).length > 0,
+    notice: touching.length
+      ? `${spec.id}: периоды объединены в ${hours(mergedStart, mergedEnd)}`
+      : null,
+  })
+}
+
+function removeOutage(set: Setter, get: Getter, index: number) {
+  const item = get().scenario?.failures[index]
+  if (!item) return
+
+  patch(set, get, (d) => {
+    d.failures.splice(index, 1)
+  })
+
+  const pending = { ...get().pending }
+  noteOutage(
+    pending,
+    outageKey('fail', item.satellite_id, item.start_s, item.end_s),
+    `Снят отказ ${item.satellite_id}`,
+    hours(item.start_s, item.end_s),
+    'remove',
+  )
+  set({ pending, stale: Object.keys(pending).length > 0, notice: null })
 }
 
 /** Правка конфигурации: заменяем сценарий целиком (иммутабельно). */
@@ -565,24 +745,4 @@ function persist(variants: Variant[], set: Setter) {
     // квота localStorage ~5 МБ; варианты крупные, молча продолжаем в памяти
     set({ notice: 'Варианты не сохранены на диск (превышена квота браузера)' })
   }
-}
-
-/**
- * Короткая сводка конфигурации для карточки варианта.
- *
- * Раньше здесь перечислялись RAAN и фаза всех плоскостей — строка вида
- * «P1:0/0.0 P2:120/11.2 P3:240/22.5» читалась как дамп памяти и в карточку
- * не влезала. Отличия от базы показывает дифф (lib/compare), а сводка
- * отвечает на другой вопрос: что это за конфигурация вообще.
- */
-export function describeScenario(s: Scenario): string {
-  const active = s.design.satellites.filter((x) => x.launch_batch <= s.design.launch_stage).length
-  const parts = [
-    `очередь ${s.design.launch_stage}`,
-    `${active} апп.`,
-    `ISL ${s.environment.isl_range_km} км`,
-    `порог ${s.environment.min_elevation_deg}°`,
-  ]
-  if (s.failures.length) parts.push(`отказов ${s.failures.length}`)
-  return parts.join(' · ')
 }

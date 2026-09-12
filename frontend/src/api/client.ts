@@ -1,9 +1,11 @@
 /**
  * Клиент API. Соответствует docs/openapi.yaml.
  *
- * По умолчанию фронтенд работает автономно: сценарии берёт из public/mock,
- * а модель считает локально. Когда API будет готов, сборка с
- * VITE_API_MODE=remote переключит те же функции на HTTP.
+ * По умолчанию все числа приходят с сервера: сценарии, валидация и расчёт
+ * идут по HTTP на /api. Локальный расчёт (localSimulator) остаётся запасным
+ * путём — клиент откатывается на него сам, если бэкенд не отвечает, и
+ * поднимает флаг apiState.usingMock, который интерфейс показывает
+ * пользователю. Сборка с VITE_API_MODE=local отключает сеть совсем.
  */
 
 import type {
@@ -14,9 +16,10 @@ import type {
   RoutingMode,
 } from '../types/api'
 import { simulateLocally } from '../lib/localSimulator'
+import { unwrapScenarioPayload } from '../lib/resultExport'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
-const USE_REMOTE_API = import.meta.env.VITE_API_MODE === 'remote'
+const USE_REMOTE_API = import.meta.env.VITE_API_MODE !== 'local'
 
 export const apiState = {
   usingMock: false,
@@ -94,19 +97,26 @@ export async function uploadScenario(file: File): Promise<ValidationReport> {
     apiState.usingMock = true
     return parseLocally(file)
   }
+  const normalized = await normalizeUpload(file)
   const form = new FormData()
-  form.append('file', file)
+  form.append('file', normalized.file)
   try {
-    return await call<ValidationReport>('/scenarios/upload', { method: 'POST', body: form })
+    const result = await call<ValidationReport>('/scenarios/upload', { method: 'POST', body: form })
+    return {
+      ...result,
+      ...(normalized.routing ? { routing: normalized.routing } : {}),
+      ...(normalized.fromResult ? { fromResult: true } : {}),
+    }
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e
     apiState.usingMock = true
-    return parseLocally(file)
+    const local = await parseLocally(normalized.file, normalized.routing)
+    return normalized.fromResult ? { ...local, fromResult: true } : local
   }
 }
 
 /** Запасной разбор в браузере: только базовые проверки структуры. */
-async function parseLocally(file: File): Promise<ValidationReport> {
+async function parseLocally(file: File, knownRouting?: RoutingMode): Promise<ValidationReport> {
   let text: string
   try {
     text = await file.text()
@@ -121,7 +131,36 @@ async function parseLocally(file: File): Promise<ValidationReport> {
       { path: '$', code: 'malformed_json', message: `Файл не является корректным JSON: ${err}` },
     ])
   }
-  return validateLocally(data)
+  const unwrapped = unwrapScenarioPayload(data)
+  const result = validateLocally(unwrapped.scenario)
+  const routing = knownRouting ?? unwrapped.routing
+  return {
+    ...result,
+    ...(routing ? { routing } : {}),
+    ...(unwrapped.fromResult ? { fromResult: true } : {}),
+  }
+}
+
+/** Remote API принимает сценарий, поэтому result-файл разворачиваем до отправки. */
+async function normalizeUpload(
+  file: File,
+): Promise<{ file: File; routing?: RoutingMode; fromResult?: boolean }> {
+  try {
+    const data = JSON.parse(await file.text()) as unknown
+    const unwrapped = unwrapScenarioPayload(data)
+    if (!unwrapped.fromResult) return { file }
+    return {
+      file: new File(
+        [JSON.stringify(unwrapped.scenario)],
+        file.name.replace(/_result(?=\.json$)/i, '') || 'scenario.json',
+        { type: 'application/json' },
+      ),
+      routing: unwrapped.routing,
+      fromResult: true,
+    }
+  } catch {
+    return { file }
+  }
 }
 
 function validateLocally(data: unknown): ValidationReport {
@@ -186,11 +225,17 @@ export async function validateScenario(scenario: Scenario): Promise<ValidationRe
     apiState.usingMock = true
     return validateLocally(scenario)
   }
-  return call<ValidationReport>('/validate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scenario }),
-  })
+  try {
+    return await call<ValidationReport>('/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario }),
+    })
+  } catch (e) {
+    if (!(e instanceof NetworkError)) throw e
+    apiState.usingMock = true
+    return validateLocally(scenario)
+  }
 }
 
 export async function simulate(
@@ -218,40 +263,4 @@ export async function simulate(
     }
     throw e
   }
-}
-
-export async function exportResult(scenario: Scenario, notes?: string): Promise<Blob> {
-  if (!USE_REMOTE_API) {
-    const result = simulateLocally(scenario)
-    const routes = Object.entries(result.routes).flatMap(([clientId, clientRoutes]) =>
-      clientRoutes.map((path, index) => ({
-        t_s: index * scenario.environment.step_s,
-        client_id: clientId,
-        path,
-      })),
-    )
-    return new Blob(
-      [
-        JSON.stringify(
-          {
-            schema_version: 'cosmo-A-result-1.0',
-            effective_scenario: scenario,
-            routes,
-            metrics: result.metrics,
-            ...(notes === undefined ? {} : { notes }),
-          },
-          null,
-          2,
-        ),
-      ],
-      { type: 'application/json' },
-    )
-  }
-  const res = await fetch(`${BASE}/export`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scenario, include_metrics: true, notes }),
-  })
-  if (!res.ok) throw new Error(`Не удалось выгрузить результат: HTTP ${res.status}`)
-  return res.blob()
 }

@@ -123,7 +123,6 @@ export const usePlayback = create<PlaybackState>((set, get) => ({
 
 export const selectStepIndex = (s: PlaybackState) => Math.floor(s.t / s.stepS)
 export const selectNSteps = (s: PlaybackState) => Math.floor(s.horizonS / s.stepS)
-export const selectProgress = (s: PlaybackState) => (s.horizonS ? s.t / s.horizonS : 0)
 
 export function formatClock(t: number): string {
   const total = Math.floor(t)

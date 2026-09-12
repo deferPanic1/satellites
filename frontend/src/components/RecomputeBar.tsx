@@ -1,6 +1,7 @@
 import { Button } from '@mantine/core'
 import { IconArrowBackUp, IconRefresh } from '@tabler/icons-react'
 import { useProject } from '../stores/project'
+import { plural } from '../lib/viz'
 import s from './RecomputeBar.module.css'
 
 /**
@@ -30,7 +31,7 @@ export function RecomputeBar() {
         </strong>
         <div className={s.changes}>
           {changes.map((ch) => (
-            <span key={ch.key} className={s.chip}>
+            <span key={ch.key} className={s.chip} data-kind={ch.kind}>
               {ch.what}
               {ch.from !== undefined && ch.to !== undefined ? (
                 <>
@@ -67,12 +68,4 @@ export function RecomputeBar() {
       </div>
     </div>
   )
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const m10 = n % 10
-  const m100 = n % 100
-  if (m10 === 1 && m100 !== 11) return one
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few
-  return many
 }

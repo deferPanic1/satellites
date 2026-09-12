@@ -1,10 +1,9 @@
 import fastapi
 import fastapi.middleware.gzip
 
-import src.api.validation_router
 import src.api.scenarios_router
 import src.api.simulation_router
-
+import src.api.validation_router
 
 MIN_COMPRESSION_THRESHHOLD: int = 1000
 
@@ -24,8 +23,10 @@ app.include_router(src.api.scenarios_router.router, prefix='/api')
 app.include_router(src.api.simulation_router.router, prefix='/api')
 
 
+@app.get('/api/health')
 @app.get('/api/health/')
 async def health() -> dict:
     return {
         'status': 'ok',
+        'version': app.version,
     }

@@ -18,40 +18,41 @@ services:
       - "${FRONTEND_PORT:-8080}:80"
     networks:
       - cosmo
-    # Раскомментировать, когда появится сервис backend:
-    # depends_on:
-    #   backend:
-    #     condition: service_healthy
+    depends_on:
+      backend:
+        condition: service_healthy
 
-  # ------------------------------------------------------------------
-  # Бэкенд (FastAPI) пока не реализован. Когда появится backend/Dockerfile
-  # с запуском uvicorn на 0.0.0.0:8000 — раскомментировать блок ниже.
-  # nginx во фронтенде уже проксирует /api/ на http://backend:8000
-  # и резолвит адрес в рантайме, поэтому стартует и без этого сервиса.
-  # ------------------------------------------------------------------
-  # backend:
-  #   build:
-  #     context: ../backend
-  #     dockerfile: Dockerfile
-  #   image: cosmo-constellation/backend:latest
-  #   container_name: cosmo-backend
-  #   restart: unless-stopped
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #   expose:
-  #     - "8000"
-  #   ports:
-  #     - "${BACKEND_PORT:-8000}:8000"
-  #   volumes:
-  #     - ../case/Данные:/app/data:ro
-  #   networks:
-  #     - cosmo
-  #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
-  #     interval: 30s
-  #     timeout: 3s
-  #     retries: 3
-  #     start_period: 10s
+  # nginx во фронтенде проксирует /api/ на http://backend:8000 и резолвит
+  # адрес в рантайме, поэтому стартует даже если бэкенд ещё поднимается.
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: cosmo-constellation/backend:latest
+    container_name: cosmo-backend
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - COSMO_DATA_DIR=/app/data
+    expose:
+      - "8000"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Встроенные сценарии кейса — сервер отдаёт их по /api/scenarios
+      - ../case/Данные:/app/data:ro
+    networks:
+      - cosmo
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
 networks:
   cosmo:
