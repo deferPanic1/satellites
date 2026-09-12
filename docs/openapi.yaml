@@ -1,0 +1,955 @@
+openapi: 3.1.0
+
+info:
+  title: Cosmo Constellation Designer API
+  version: 1.0.0
+  description: |
+    API сервиса проектирования устойчивой спутниковой группировки.
+    КосмоХакатон 2026.
+
+    ## Принципы
+
+    **Сервер не хранит состояние.** Сценарий передаётся целиком в теле каждого
+    запроса. Нет БД, сессий и идентификаторов вариантов. Это прямое следствие
+    требования выгружать `effective_scenario` — полный использованный сценарий.
+
+    **Один расчёт отдаёт всё.** Полный суточный расчёт (720 шагов) занимает
+    ~400 мс, ответ весит ~19 КБ в gzip. Поэтому фронт запрашивает расчёт один
+    раз и дальше крутит таймлайн локально, без обращений к серверу.
+
+    **Позиции спутников в массовом ответе не передаются.** Фронт считает их сам
+    по формуле `u = slot_deg + phase_deg + n·t` для плавной анимации, используя
+    константы из блока `constants`. Все ЧИСЛА (метрики, выгрузка) приходят
+    с сервера — фронтовый расчёт только для картинки.
+
+    ## Ошибки валидации
+
+    Некорректный сценарий — это не ошибка протокола, а нормальный результат.
+    Такие ответы возвращаются с **HTTP 200** и полем `valid: false`.
+    Коды 4xx зарезервированы за ошибками протокола (не тот content-type,
+    отсутствует обязательное поле запроса).
+
+servers:
+  - url: /api
+    description: Тот же origin, что и фронтенд
+
+tags:
+  - name: scenarios
+    description: Встроенные сценарии и загрузка пользовательских файлов
+  - name: compute
+    description: Валидация, расчёт, снимок состояния
+  - name: export
+    description: Выгрузка результата
+
+paths:
+
+  /health:
+    get:
+      tags: [compute]
+      summary: Проверка живости сервиса
+      operationId: health
+      responses:
+        '200':
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version]
+                properties:
+                  status: { type: string, const: ok }
+                  version: { type: string, example: "1.0.0" }
+
+  /scenarios:
+    get:
+      tags: [scenarios]
+      summary: Список встроенных сценариев
+      description: Только метаданные, без полного содержимого файлов.
+      operationId: listScenarios
+      responses:
+        '200':
+          description: Список доступных демо-сценариев
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScenarioListItem' }
+              example:
+                - id: "01_full_constellation"
+                  title: "Полная группировка"
+                  n_satellites: 48
+                  n_planes: 3
+                  n_clients: 3
+                  n_gateways: 1
+                  launch_stage: 3
+                  isl_range_km: 3000.0
+                  n_failures: 0
+                - id: "02_first_launch"
+                  title: "Первая очередь запуска"
+                  n_satellites: 48
+                  n_planes: 3
+                  n_clients: 3
+                  n_gateways: 1
+                  launch_stage: 1
+                  isl_range_km: 3000.0
+                  n_failures: 0
+
+  /scenarios/{id}:
+    get:
+      tags: [scenarios]
+      summary: Полный JSON встроенного сценария
+      operationId: getScenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          example: "01_full_constellation"
+      responses:
+        '200':
+          description: Сценарий целиком
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Scenario' }
+        '404':
+          description: Сценарий с таким id не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /scenarios/upload:
+    post:
+      tags: [scenarios]
+      summary: Загрузка пользовательского файла сценария
+      description: |
+        Разбор и валидация загруженного JSON-файла.
+
+        Обрабатывает случаи, которые неудобно ловить на фронте: не-JSON,
+        нестандартная кодировка, обрезанный файл, превышение размера.
+
+        Некорректный файл возвращается с HTTP 200 и `valid: false` —
+        пользователю надо показать список проблем, а не ошибку.
+      operationId: uploadScenario
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JSON-файл сценария, UTF-8, не более 10 МБ
+      responses:
+        '200':
+          description: Файл обработан (успешно или с ошибками валидации)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationReport' }
+              examples:
+                ok:
+                  summary: Файл корректен
+                  value:
+                    valid: true
+                    scenario: { schema_version: "cosmo-A-1.0" }
+                    summary:
+                      n_satellites: 48
+                      n_planes: 3
+                      n_clients: 3
+                      n_gateways: 1
+                      n_steps: 720
+                      launch_stage: 3
+                    errors: []
+                    warnings: []
+                broken:
+                  summary: Файл с ошибками
+                  value:
+                    valid: false
+                    scenario: null
+                    summary: null
+                    errors:
+                      - path: "environment.step_s"
+                        code: "invalid_time_grid"
+                        message: "horizon_s (86400) должен делиться на step_s (700) без остатка"
+                        value: 700
+                      - path: "design.satellites[17].plane_id"
+                        code: "unresolved_reference"
+                        message: "Плоскость 'P4' не найдена. Доступны: P1, P2, P3"
+                        value: "P4"
+                    warnings: []
+        '413':
+          description: Файл превышает лимит размера
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /validate:
+    post:
+      tags: [compute]
+      summary: Валидация сценария без расчёта
+      description: |
+        Используется, когда пользователь правит конфигурацию в форме
+        и хочет проверить корректность до запуска расчёта.
+
+        Возвращает **все** найденные ошибки сразу, а не первую.
+      operationId: validateScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scenario]
+              properties:
+                scenario: { $ref: '#/components/schemas/Scenario' }
+      responses:
+        '200':
+          description: Отчёт о валидации
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationReport' }
+
+  /simulate:
+    post:
+      tags: [compute]
+      summary: Полный расчёт на весь горизонт
+      description: |
+        Главная ручка. Считает состояние сети и маршруты на всех
+        `horizon_s / step_s` отсчётах.
+
+        Типовое время ответа — 400 мс для 720 шагов и 48 аппаратов.
+        Ответ обязательно отдаётся с gzip: 930 КБ сырых сжимаются до ~19 КБ.
+
+        Если сценарий не проходит валидацию, возвращается HTTP 200
+        с `valid: false` и заполненным `errors`, без поля `result`.
+      operationId: simulate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SimulateRequest' }
+      responses:
+        '200':
+          description: Результат расчёта либо отчёт об ошибках валидации
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SimulateResponse'
+                  - $ref: '#/components/schemas/ValidationReport'
+
+  /snapshot:
+    post:
+      tags: [compute]
+      summary: Детали одного момента времени
+      description: |
+        Возвращает то, что дорого класть в массовый ответ: координаты,
+        углы возвышения, разбор маршрута по участкам, карточку выбранного
+        спутника.
+
+        Вызывается интерактивно — когда пользователь остановил таймлайн
+        или ткнул в спутник. Один снимок считается за 0.9 мс.
+      operationId: snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SnapshotRequest' }
+      responses:
+        '200':
+          description: Состояние сети в момент t_s
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SnapshotResponse' }
+        '422':
+          description: t_s вне горизонта расчёта или не кратен шагу
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /export:
+    post:
+      tags: [export]
+      summary: Выгрузка результата в формате cosmo-A-result-1.0
+      description: |
+        Формат задан кейсом жёстко. Содержит `effective_scenario`
+        (сценарий ровно в том виде, в котором считали, со всеми правками
+        пользователя) и `routes` — по одной записи на КАЖДУЮ пару
+        «отсчёт × клиент», включая те, где маршрута нет (`path: []`).
+
+        Для базовых сценариев это 720 × 3 = 2160 записей.
+
+        Выгруженный файл обязан снова загружаться через `/scenarios/upload`
+        после извлечения `effective_scenario`.
+      operationId: exportResult
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scenario]
+              properties:
+                scenario: { $ref: '#/components/schemas/Scenario' }
+                include_metrics:
+                  type: boolean
+                  default: true
+                  description: Добавить необязательный блок `metrics`
+                notes:
+                  type: string
+                  description: Произвольное пояснение команды
+                  example: "Маршрутизация: BFS по минимуму переходов"
+      responses:
+        '200':
+          description: Файл результата
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: 'attachment; filename="01_full_constellation_result.json"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportResult' }
+
+components:
+
+  schemas:
+
+    # ---------- Входной сценарий: cosmo-A-1.0 ----------
+
+    Scenario:
+      type: object
+      title: Сценарий cosmo-A-1.0
+      description: |
+        Формат задан кейсом. Структура неизменна, значения любые в пределах
+        валидации. Неизвестные поля сохраняются при обратной выгрузке.
+      required: [schema_version, meta, environment, design, ground_sites, failures, gateway_outages]
+      properties:
+        schema_version:
+          type: string
+          const: "cosmo-A-1.0"
+        meta:
+          type: object
+          required: [id, title]
+          properties:
+            id: { type: string, example: "01_full_constellation" }
+            title: { type: string, example: "Полная группировка" }
+        environment: { $ref: '#/components/schemas/Environment' }
+        design: { $ref: '#/components/schemas/Design' }
+        ground_sites:
+          type: array
+          minItems: 2
+          description: Обязательно хотя бы один client и хотя бы один gateway. Шлюзов может быть НЕСКОЛЬКО.
+          items: { $ref: '#/components/schemas/GroundSite' }
+        failures:
+          type: array
+          description: Периоды недоступности спутников. Пустой список — отказов нет.
+          items: { $ref: '#/components/schemas/SatelliteOutage' }
+        gateway_outages:
+          type: array
+          description: Периоды недоступности шлюзов.
+          items: { $ref: '#/components/schemas/GatewayOutage' }
+
+    Environment:
+      type: object
+      required: [altitude_km, inclination_deg, earth_angle0_deg, horizon_s, step_s,
+                 min_elevation_deg, isl_range_km, target_availability]
+      properties:
+        altitude_km:
+          type: number
+          minimum: 200
+          maximum: 1200
+          example: 550.0
+        inclination_deg:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 180
+          example: 87.0
+        earth_angle0_deg:
+          type: number
+          description: Поворот Земли относительно координатных осей в начале расчёта
+          example: 12.0
+        horizon_s:
+          type: integer
+          maximum: 172800
+          description: Продолжительность расчёта. Должна быть кратна step_s.
+          example: 86400
+        step_s:
+          type: integer
+          exclusiveMinimum: 0
+          example: 120
+        min_elevation_deg:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 90
+          example: 10.0
+        isl_range_km:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 10000
+          description: |
+            Предельная дальность межспутниковой линии. При значении выше 5408 км
+            начинает работать проверка пересечения линии связи с Землёй,
+            которая при 3000 км не срабатывает никогда.
+          example: 3000.0
+        target_availability:
+          type: number
+          minimum: 0
+          maximum: 1
+          example: 0.9
+
+    Design:
+      type: object
+      required: [launch_stage, planes, satellites]
+      properties:
+        launch_stage:
+          type: integer
+          enum: [1, 2, 3]
+          description: Активны аппараты с launch_batch <= launch_stage
+        planes:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Plane' }
+        satellites:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Satellite' }
+
+    Plane:
+      type: object
+      required: [id, raan_deg, phase_deg]
+      properties:
+        id: { type: string, example: "P1" }
+        raan_deg:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 360
+          description: Ориентация плоскости — поворот вокруг оси Земли
+        phase_deg:
+          type: number
+          minimum: 0
+          exclusiveMaximum: 360
+          description: Общий сдвиг аппаратов вдоль орбиты этой плоскости
+
+    Satellite:
+      type: object
+      required: [id, plane_id, slot_deg, launch_batch]
+      properties:
+        id: { type: string, example: "S01" }
+        plane_id: { type: string, example: "P1" }
+        slot_deg:
+          type: number
+          description: Начальное угловое положение внутри плоскости; к нему прибавляется phase_deg
+        launch_batch:
+          type: integer
+          enum: [1, 2, 3]
+
+    GroundSite:
+      type: object
+      required: [id, name, role, lat_deg, lon_deg]
+      properties:
+        id: { type: string, example: "G_MUR" }
+        name: { type: string, example: "Murmansk reference gateway" }
+        role:
+          type: string
+          enum: [client, gateway]
+        lat_deg: { type: number, minimum: -90, maximum: 90 }
+        lon_deg: { type: number, minimum: -180, maximum: 180 }
+
+    SatelliteOutage:
+      type: object
+      required: [satellite_id, start_s, end_s]
+      description: Интервал [start_s; end_s) — начало включается, конец исключается.
+      properties:
+        satellite_id: { type: string, example: "S31" }
+        start_s: { type: number, minimum: 0, example: 21600 }
+        end_s: { type: number, example: 86400 }
+
+    GatewayOutage:
+      type: object
+      required: [gateway_id, start_s, end_s]
+      properties:
+        gateway_id: { type: string, example: "G_MUR" }
+        start_s: { type: number, minimum: 0 }
+        end_s: { type: number }
+
+    # ---------- Валидация ----------
+
+    ValidationReport:
+      type: object
+      required: [valid, errors, warnings]
+      properties:
+        valid: { type: boolean }
+        scenario:
+          oneOf:
+            - $ref: '#/components/schemas/Scenario'
+            - type: 'null'
+          description: Разобранный сценарий при valid=true, иначе null
+        summary:
+          oneOf:
+            - $ref: '#/components/schemas/ScenarioSummary'
+            - type: 'null'
+        errors:
+          type: array
+          description: ВСЕ найденные ошибки, а не первая
+          items: { $ref: '#/components/schemas/FieldError' }
+        warnings:
+          type: array
+          description: Не блокируют расчёт (например, ни один клиент не достигает целевой доступности)
+          items: { $ref: '#/components/schemas/FieldError' }
+
+    FieldError:
+      type: object
+      required: [path, code, message]
+      properties:
+        path:
+          type: string
+          description: Путь до проблемного поля. "$" — ошибка уровня документа.
+          example: "design.satellites[17].plane_id"
+        code:
+          type: string
+          enum:
+            - malformed_json
+            - unsupported_schema_version
+            - missing_field
+            - wrong_type
+            - non_finite_value
+            - out_of_range
+            - duplicate_id
+            - unresolved_reference
+            - invalid_time_grid
+            - outage_outside_horizon
+            - outage_nonpositive_duration
+            - client_or_gateway_missing
+            - node_id_collision
+        message:
+          type: string
+          description: Человекочитаемое сообщение на русском
+          example: "Плоскость 'P4' не найдена. Доступны: P1, P2, P3"
+        value:
+          description: Фактическое значение, вызвавшее ошибку
+
+    ScenarioSummary:
+      type: object
+      properties:
+        n_satellites: { type: integer, example: 48 }
+        n_active_satellites:
+          type: integer
+          description: Сколько аппаратов активно на старте расчёта
+          example: 48
+        n_planes: { type: integer, example: 3 }
+        n_clients: { type: integer, example: 3 }
+        n_gateways: { type: integer, example: 1 }
+        n_steps: { type: integer, example: 720 }
+        launch_stage: { type: integer, example: 3 }
+
+    ScenarioListItem:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        n_satellites: { type: integer }
+        n_planes: { type: integer }
+        n_clients: { type: integer }
+        n_gateways: { type: integer }
+        launch_stage: { type: integer }
+        isl_range_km: { type: number }
+        n_failures: { type: integer }
+
+    # ---------- Расчёт ----------
+
+    SimulateRequest:
+      type: object
+      required: [scenario]
+      properties:
+        scenario: { $ref: '#/components/schemas/Scenario' }
+        options: { $ref: '#/components/schemas/SimulateOptions' }
+
+    SimulateOptions:
+      type: object
+      properties:
+        routing:
+          type: string
+          enum: [min_hops, min_distance]
+          default: min_hops
+          description: |
+            `min_hops` — BFS по минимуму переходов.
+            `min_distance` — Dijkstra по суммарной дальности.
+            Переключатель нужен для обоснования выбранного подхода.
+        include_edges:
+          type: boolean
+          default: true
+          description: Отдавать ли рёбра сети для 3D-визуализации
+        include_routes:
+          type: boolean
+          default: true
+
+    SimulateResponse:
+      type: object
+      required: [valid, meta, constants, nodes, metrics, summary]
+      properties:
+        valid: { type: boolean, const: true }
+        meta: { $ref: '#/components/schemas/ResultMeta' }
+        constants: { $ref: '#/components/schemas/Constants' }
+        nodes: { $ref: '#/components/schemas/Nodes' }
+        steps:
+          type: array
+          description: |
+            Состояние сети на каждом отсчёте. Длина = meta.n_steps.
+            Отсутствует, если include_edges=false.
+          items: { $ref: '#/components/schemas/StepState' }
+        routes:
+          type: object
+          description: |
+            Ключ — client_id. Значение — массив длины n_steps.
+            Каждый элемент — путь от клиента до шлюза. Пустой массив = маршрута нет.
+          additionalProperties:
+            type: array
+            items:
+              type: array
+              items: { type: string }
+          example:
+            C72:
+              - ["C72", "S35", "S20", "G_MUR"]
+              - ["C72", "S35", "S20", "G_MUR"]
+              - []
+        reasons:
+          type: object
+          description: |
+            Ключ — client_id. Массив длины n_steps.
+            null там, где маршрут есть.
+          additionalProperties:
+            type: array
+            items:
+              oneOf:
+                - $ref: '#/components/schemas/OutageReason'
+                - type: 'null'
+        metrics:
+          type: object
+          description: Ключ — client_id
+          additionalProperties: { $ref: '#/components/schemas/ClientMetrics' }
+        summary: { $ref: '#/components/schemas/ResultSummary' }
+
+    ResultMeta:
+      type: object
+      required: [scenario_id, n_steps, step_s, horizon_s, target_availability]
+      properties:
+        scenario_id: { type: string, example: "01_full_constellation" }
+        title: { type: string, example: "Полная группировка" }
+        n_steps:
+          type: integer
+          description: horizon_s / step_s
+          example: 720
+        step_s: { type: integer, example: 120 }
+        horizon_s: { type: integer, example: 86400 }
+        target_availability: { type: number, example: 0.9 }
+        routing: { type: string, example: "min_hops" }
+        computed_ms: { type: number, example: 412.3 }
+
+    Constants:
+      type: object
+      description: |
+        Чтобы фронт считал позиции спутников теми же числами, что и бэк,
+        и не расходился с ним при анимации.
+      properties:
+        earth_radius_km: { type: number, const: 6371.0 }
+        mu_km3_s2: { type: number, const: 398600.435507 }
+        earth_rotation_period_s: { type: number, const: 86164.09054 }
+        orbit_radius_km: { type: number, example: 6921.0 }
+        mean_motion_deg_s: { type: number, example: 0.0628279 }
+        orbital_period_s: { type: number, example: 5730.13 }
+        earth_rotation_deg_s: { type: number, example: 0.0041781 }
+        satellite_speed_km_s: { type: number, example: 7.589 }
+
+    Nodes:
+      type: object
+      description: Статический состав сети — не меняется по шагам
+      required: [planes, satellites, ground]
+      properties:
+        planes:
+          type: array
+          items: { $ref: '#/components/schemas/Plane' }
+        satellites:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Satellite'
+              - type: object
+                properties:
+                  ever_active:
+                    type: boolean
+                    description: Бывает ли аппарат активен хотя бы на одном шаге
+        ground:
+          type: array
+          items: { $ref: '#/components/schemas/GroundSite' }
+
+    StepState:
+      type: object
+      required: [t_s, edges]
+      properties:
+        t_s: { type: integer, example: 0 }
+        inactive:
+          type: array
+          description: ID аппаратов, неактивных на этом шаге. Обычно пусто.
+          items: { type: string }
+          example: ["S31", "S14"]
+        edges:
+          type: array
+          description: |
+            Пары ID доступных контактов. Все правила (дальность ISL,
+            непересечение Земли, порог возвышения, активность, отказ шлюза)
+            УЖЕ применены. Дистанции опущены — фронт считает их сам.
+          items:
+            type: array
+            items: { type: string }
+            minItems: 2
+            maxItems: 2
+          example: [["C72", "S35"], ["S35", "S20"], ["S20", "G_MUR"]]
+
+    OutageReason:
+      type: string
+      enum: [no_sat, isl_break, no_gw, gw_down]
+      description: |
+        `no_sat` — над клиентом нет ни одного видимого активного спутника.
+        `isl_break` — спутниковая сеть разорвана между клиентом и шлюзом.
+        `no_gw` — ни один шлюз не видит ни одного аппарата.
+        `gw_down` — все шлюзы выключены (gateway_outages).
+
+    ClientMetrics:
+      type: object
+      required: [visibility_pct, availability_pct, target_met, max_gap_s]
+      properties:
+        visibility_pct:
+          type: number
+          description: Доля отсчётов с видимостью хотя бы одного активного спутника
+          example: 100.0
+        availability_pct:
+          type: number
+          description: Доля отсчётов, где существует сквозной маршрут до шлюза
+          example: 98.89
+        target_met:
+          type: boolean
+          description: availability_pct >= target_availability * 100
+        max_gap_s:
+          type: integer
+          description: Длиннейшая серия отсчётов без маршрута, умноженная на step_s
+          example: 120
+        total_outage_s: { type: integer, example: 960 }
+        gaps:
+          type: array
+          items: { $ref: '#/components/schemas/Gap' }
+        hops: { $ref: '#/components/schemas/HopStats' }
+        avg_path_km: { type: number, example: 5210.4 }
+
+    Gap:
+      type: object
+      required: [start_s, end_s, duration_s]
+      properties:
+        start_s: { type: integer }
+        end_s: { type: integer }
+        duration_s: { type: integer }
+        reason: { $ref: '#/components/schemas/OutageReason' }
+        at_boundary:
+          type: boolean
+          description: Перерыв упирается в начало или конец горизонта — учитывается отдельно
+
+    HopStats:
+      type: object
+      description: Число переходов = число рёбер маршрута, ВКЛЮЧАЯ обе наземные линии
+      properties:
+        min: { type: integer, example: 2 }
+        max: { type: integer, example: 5 }
+        avg: { type: number, example: 2.94 }
+        histogram:
+          type: object
+          additionalProperties: { type: integer }
+          example: { "2": 310, "3": 380, "4": 22, "5": 1 }
+
+    ResultSummary:
+      type: object
+      properties:
+        all_targets_met: { type: boolean }
+        worst_client: { type: string, example: "C65" }
+        worst_availability_pct: { type: number, example: 96.67 }
+        avg_isl_edges_per_step: { type: number, example: 74.2 }
+        avg_ground_edges_per_step: { type: number, example: 6.6 }
+
+    # ---------- Снимок ----------
+
+    SnapshotRequest:
+      type: object
+      required: [scenario, t_s]
+      properties:
+        scenario: { $ref: '#/components/schemas/Scenario' }
+        t_s:
+          type: integer
+          description: Момент времени. Должен лежать в [0; horizon_s) и быть кратен step_s.
+          example: 3600
+        client_id:
+          type: string
+          description: Если задан, вернуть разбор маршрута для этого клиента
+          example: "C72"
+        sat_id:
+          type: string
+          description: Если задан, вернуть карточку этого спутника
+          example: "S42"
+
+    SnapshotResponse:
+      type: object
+      required: [t_s, satellites, edges, elevation_deg]
+      properties:
+        t_s: { type: integer }
+        satellites:
+          type: array
+          description: ВСЕ аппараты сценария, включая неактивные (у них active=false)
+          items:
+            type: object
+            required: [id, x_km, y_km, z_km, active]
+            properties:
+              id: { type: string }
+              x_km: { type: number }
+              y_km: { type: number }
+              z_km: { type: number }
+              active: { type: boolean }
+              plane_id: { type: string }
+        edges:
+          type: array
+          description: Тройки [id_1, id_2, distance_km]
+          items:
+            type: array
+            prefixItems:
+              - type: string
+              - type: string
+              - type: number
+            minItems: 3
+            maxItems: 3
+          example: [["S42", "S26", 1665.7]]
+        elevation_deg:
+          type: object
+          description: |
+            Ключ — наземный пункт, значение — углы по ВСЕМ активным аппаратам.
+            ВНИМАНИЕ: порог min_elevation_deg здесь НЕ применён, встречаются
+            отрицательные значения (аппарат под горизонтом).
+          additionalProperties:
+            type: object
+            additionalProperties: { type: number }
+        route: { $ref: '#/components/schemas/RouteDetail' }
+        selected_satellite: { $ref: '#/components/schemas/SatelliteDetail' }
+
+    RouteDetail:
+      type: object
+      properties:
+        client_id: { type: string, example: "C72" }
+        path:
+          type: array
+          items: { type: string }
+          example: ["C72", "S42", "S26", "G_MUR"]
+        gateway_id:
+          type: string
+          description: Шлюз, до которого фактически дошёл маршрут
+          example: "G_MUR"
+        hops: { type: integer, example: 3 }
+        total_km: { type: number, example: 4128.4 }
+        reason:
+          oneOf:
+            - $ref: '#/components/schemas/OutageReason'
+            - type: 'null'
+        legs:
+          type: array
+          items: { $ref: '#/components/schemas/RouteLeg' }
+
+    RouteLeg:
+      type: object
+      required: [from, to, type, distance_km]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        type:
+          type: string
+          enum: [uplink, isl, downlink]
+        distance_km: { type: number }
+        elevation_deg:
+          type: number
+          description: Только для uplink и downlink
+        inter_plane:
+          type: boolean
+          description: Только для isl — связь между разными плоскостями
+
+    SatelliteDetail:
+      type: object
+      properties:
+        id: { type: string }
+        plane_id: { type: string }
+        launch_batch: { type: integer }
+        active: { type: boolean }
+        inactive_reason:
+          type: string
+          enum: [not_launched, failed]
+        neighbours:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              distance_km: { type: number }
+              plane_id: { type: string }
+        serving_clients:
+          type: array
+          description: Клиенты, которые видят этот аппарат сейчас
+          items: { type: string }
+        on_route_for:
+          type: array
+          description: Клиенты, чей текущий маршрут проходит через этот аппарат
+          items: { type: string }
+
+    # ---------- Выгрузка ----------
+
+    ExportResult:
+      type: object
+      title: Результат cosmo-A-result-1.0
+      description: Формат задан кейсом. Поля metrics и notes необязательны.
+      required: [schema_version, effective_scenario, routes]
+      properties:
+        schema_version:
+          type: string
+          const: "cosmo-A-result-1.0"
+        effective_scenario:
+          allOf:
+            - $ref: '#/components/schemas/Scenario'
+          description: |
+            Сценарий ровно в том виде, в котором выполнялся расчёт,
+            включая изменения, сделанные пользователем в интерфейсе.
+            Должен снова загружаться без потерь.
+        routes:
+          type: array
+          description: |
+            Ровно n_steps × n_clients записей. Одна на каждую пару
+            «отсчёт × клиент», ВКЛЮЧАЯ те, где маршрута нет.
+          items: { $ref: '#/components/schemas/RouteRecord' }
+        metrics:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/ClientMetrics' }
+        notes: { type: string }
+
+    RouteRecord:
+      type: object
+      required: [t_s, client_id, path]
+      properties:
+        t_s: { type: integer, example: 120 }
+        client_id: { type: string, example: "C65" }
+        path:
+          type: array
+          description: Последовательность ID от клиента до шлюза. Пустой список — маршрута нет.
+          items: { type: string }
+          example: ["C65", "S02", "G_MUR"]
+
+    # ---------- Общее ----------
+
+    ApiError:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }
+        code: { type: string }
