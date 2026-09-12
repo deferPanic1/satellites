@@ -214,7 +214,15 @@ export interface RouteLeg {
 export interface Variant {
   id: string
   label: string
+  /**
+   * Порядковый номер сохранения, монотонный и не переиспользуемый.
+   * Цвет варианта в графиках закреплён за seq, а не за позицией в списке:
+   * удаление соседа не должно перекрашивать остальные серии.
+   */
+  seq: number
   scenario: Scenario
   result: SimulateResponse
   createdAt: number
+  /** заметка инженера: чем этот вариант интересен */
+  note?: string
 }

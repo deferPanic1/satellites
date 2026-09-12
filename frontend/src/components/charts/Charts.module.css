@@ -1,0 +1,321 @@
+/* ——— полоса доступности ——— */
+
+.stripWrap {
+  position: relative;
+}
+.strip {
+  display: flex;
+  width: 100%;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+}
+.stripEmpty {
+  width: 100%;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.08);
+}
+.segOk,
+.segGap {
+  display: block;
+  height: 100%;
+  flex-basis: 0;
+  transition: filter 0.12s;
+}
+.segOk {
+  background: #2a6fb0;
+}
+/* перерыв в один отсчёт — это 0.14% суток: без минимальной ширины его
+   физически не видно. Полосы «связь» сжимаются, суммарная длина сохраняется. */
+.segGap {
+  background: #d03b3b;
+  min-width: 2px;
+  flex-shrink: 0;
+}
+.segOk:hover,
+.segGap:hover {
+  filter: brightness(1.35);
+}
+.segOk[data-clickable],
+.segGap[data-clickable] {
+  cursor: pointer;
+}
+/* риска текущего отсчёта: строго по высоте полосы, чтобы не налезать
+   на подпись оси под ней */
+.cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #7dd3fc;
+  pointer-events: none;
+}
+/* ось повторяется у каждой карточки, поэтому приглушена: она нужна для
+   ориентира, а не для чтения значений */
+.stripAxis {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 0.15rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.58rem;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+.stripTip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  background: rgba(8, 12, 22, 0.96);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.stripTip b {
+  font-weight: 600;
+}
+.stripTip em {
+  color: #fca5a5;
+  font-style: normal;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+
+/* ——— полосчатые диаграммы ——— */
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.groupLabel {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  color: #e2e8f0;
+}
+.groupNote {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+.bars {
+  display: flex;
+  flex-direction: column;
+  /* 2px между соседними полосами — фон работает разделителем */
+  gap: 2px;
+}
+.barRow {
+  display: grid;
+  grid-template-columns: var(--series-col, 0) 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+.seriesLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.barRow:has(.seriesLabel) {
+  --series-col: minmax(4rem, 8rem);
+}
+.swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.track,
+.trackDelta {
+  position: relative;
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.1);
+  overflow: hidden;
+}
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+}
+.targetTick {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 0;
+  border-left: 1px dashed rgba(226, 232, 240, 0.75);
+}
+.targetSample {
+  display: inline-block;
+  width: 12px;
+  height: 0;
+  border-top: 1px dashed rgba(226, 232, 240, 0.75);
+  vertical-align: 3px;
+  margin-right: 0.3rem;
+}
+.axisNote {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+.value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 4.2rem;
+}
+.value[data-good='true'] {
+  color: #4ade80;
+}
+.value[data-good='false'] {
+  color: #f87171;
+}
+.bestMark {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: #0ca30c;
+  vertical-align: 1px;
+}
+
+/* дельты: ноль по центру, направление несёт знак */
+.zero {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.45);
+}
+.fillDelta {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ——— легенда ——— */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: #cbd5e1;
+}
+.legend small {
+  color: #64748b;
+  font-size: 0.68rem;
+}
+
+/* ——— плитка ——— */
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(5, 7, 13, 0.6);
+}
+.tile[data-alarm] {
+  border-color: rgba(208, 59, 59, 0.45);
+  background: rgba(208, 59, 59, 0.07);
+}
+.tileKey {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  line-height: 1.25;
+}
+.tileValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+/* единица измерения — не часть числа: в моноширинном наборе пробел перед
+   знаком процента разъезжается на полсимвола */
+.unit {
+  margin-left: 0.15rem;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+.tile[data-alarm] .tileValue {
+  color: #f87171;
+}
+.tileNote {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+.meter {
+  position: relative;
+  display: block;
+  height: 5px;
+  margin: 0.25rem 0 0.15rem;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.14);
+  overflow: hidden;
+}
+.meterFill {
+  display: block;
+  height: 100%;
+  background: #2a6fb0;
+  border-radius: 3px 0 0 3px;
+}
+.meterFill[data-alarm] {
+  background: #d03b3b;
+}
+.meterMark {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background: rgba(226, 232, 240, 0.85);
+}

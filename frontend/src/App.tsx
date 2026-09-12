@@ -5,6 +5,7 @@ import {
   IconChartBar,
   IconChevronLeft,
   IconChevronRight,
+  IconColumns2,
   IconRoute,
   IconSettings,
   IconUpload,
@@ -14,6 +15,8 @@ import { TimelineBar } from './components/TimelineBar'
 import { ConfigPanel } from './components/ConfigPanel'
 import { MetricsPanel } from './components/MetricsPanel'
 import { InspectorPanel } from './components/InspectorPanel'
+import { VariantsPanel } from './components/VariantsPanel'
+import { CompareModal } from './components/CompareModal'
 import { RecomputeBar } from './components/RecomputeBar'
 import { useProject } from './stores/project'
 import s from './App.module.css'
@@ -56,6 +59,8 @@ export function App() {
   const setSelectedClient = useProject((x) => x.setSelectedClient)
   const loadBuiltin = useProject((x) => x.loadBuiltin)
   const loadFile = useProject((x) => x.loadFile)
+  const variants = useProject((x) => x.variants)
+  const openCompare = useProject((x) => x.openCompare)
 
   // Сценарий не подставляется сам: пока пользователь не выбрал файл,
   // считать нечего. Расчёт запускается загрузкой, как описывает кейс.
@@ -69,6 +74,8 @@ export function App() {
   useHotkeys([
     ['[', () => setLeftOpen((v) => !v)],
     [']', () => setRightOpen((v) => !v)],
+    // сравнение — основной сценарий кейса, поэтому у него свой шорткат
+    ['c', () => variants.length >= 2 && openCompare()],
   ])
 
   /** Клик по иконке свёрнутой правой панели открывает сразу нужную вкладку. */
@@ -247,12 +254,23 @@ export function App() {
                 <Tabs.List>
                   <Tabs.Tab value="metrics">Показатели</Tabs.Tab>
                   <Tabs.Tab value="inspect">Маршрут</Tabs.Tab>
+                  <Tabs.Tab
+                    value="variants"
+                    rightSection={
+                      variants.length ? <span className={s.count}>{variants.length}</span> : null
+                    }
+                  >
+                    Варианты
+                  </Tabs.Tab>
                 </Tabs.List>
                 <Tabs.Panel value="metrics">
                   <MetricsPanel />
                 </Tabs.Panel>
                 <Tabs.Panel value="inspect">
                   <InspectorPanel />
+                </Tabs.Panel>
+                <Tabs.Panel value="variants">
+                  <VariantsPanel />
                 </Tabs.Panel>
               </Tabs>
             </div>
@@ -276,10 +294,21 @@ export function App() {
                 <IconRoute size={17} />
                 <span className={s.railLabel}>Маршрут</span>
               </button>
+              <button
+                type="button"
+                className={s.railBtn}
+                onClick={() => openRight('variants')}
+                title="Варианты · ]"
+              >
+                <IconColumns2 size={17} />
+                <span className={s.railLabel}>Варианты</span>
+              </button>
             </div>
           </aside>
         </main>
       )}
+
+      <CompareModal />
     </div>
   )
 }

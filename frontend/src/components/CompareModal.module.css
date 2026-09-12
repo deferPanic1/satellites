@@ -1,0 +1,392 @@
+.modalHeader {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  min-height: unset;
+  padding-block: 0.55rem;
+}
+.modalTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.modalTitle small {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #64748b;
+}
+.modalBody {
+  padding: 0;
+  height: calc(100vh - 3rem);
+  overflow: hidden;
+}
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ——— шапка: участники сравнения и выгрузка ——— */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(5, 7, 13, 0.6);
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+}
+.chip[data-base] {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.1);
+  color: #e2e8f0;
+}
+.chip i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.chip small {
+  color: #64748b;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.exports {
+  display: flex;
+  gap: 0.2rem;
+}
+
+/* ——— вкладки ——— */
+.tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.tabs > :global(.mantine-Tabs-list) {
+  padding: 0 1.1rem;
+}
+.panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem 1.1rem 2rem;
+}
+
+/* ——— раскладка ——— */
+.cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(30rem, 1fr));
+  gap: 1.6rem;
+  align-items: start;
+}
+/* сводная таблица шире графика: у неё девять столбцов, у графика — три полосы */
+.colsWide {
+  display: grid;
+  grid-template-columns: minmax(30rem, 1.2fr) minmax(26rem, 1fr);
+  gap: 1.6rem;
+  align-items: start;
+}
+@media (max-width: 1240px) {
+  .colsWide {
+    grid-template-columns: 1fr;
+  }
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-width: 0;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+h3 {
+  margin: 0;
+}
+.panel h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.subtle {
+  text-transform: none;
+  letter-spacing: 0;
+  color: #64748b;
+  font-weight: 400;
+}
+.chartBox {
+  margin-top: 0.6rem;
+}
+.hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.73rem;
+  color: #64748b;
+  line-height: 1.55;
+  max-width: 46rem;
+}
+
+/* ——— вердикт ——— */
+.verdict {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.06);
+}
+.verdict h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #7dd3fc;
+  margin-bottom: 0.5rem;
+}
+.verdict p {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+.verdict p:last-child {
+  margin-bottom: 0;
+}
+.verdictSub {
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(56, 189, 248, 0.18);
+  font-size: 0.76rem !important;
+  color: #94a3b8 !important;
+}
+
+/* ——— таблицы ——— */
+.tableScroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+/* таблица параметров узкая — в три колонки её незачем растягивать на экран */
+.narrow {
+  max-width: 56rem;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+.table th,
+.table td {
+  padding: 0.4rem 0.6rem;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.table thead th {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.7rem;
+  color: #64748b;
+  text-transform: none;
+  letter-spacing: 0;
+  background: rgba(5, 7, 13, 0.75);
+}
+.table th.sticky,
+.table td.sticky {
+  min-width: 8.5rem;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  font-family: inherit;
+  background: var(--panel);
+}
+.table tbody tr:hover td {
+  background: rgba(148, 163, 184, 0.05);
+}
+.table td[data-best] {
+  color: #7ee787;
+  font-weight: 600;
+}
+.table td[data-best]::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: #0ca30c;
+  vertical-align: 1px;
+}
+.table tr[data-best] td.sticky {
+  box-shadow: inset 2px 0 0 #0ca30c;
+}
+.table td[data-changed] {
+  background: rgba(56, 189, 248, 0.1);
+  color: #e2e8f0;
+}
+.table tr[data-diff] td.sticky {
+  color: #e2e8f0;
+}
+.groupRow th {
+  text-align: left;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  background: rgba(148, 163, 184, 0.06);
+  font-family: inherit;
+  font-weight: 600;
+}
+/* имя варианта и его метки переносятся: расширять залипающую колонку
+   ради двух бейджей значит отъедать место у девяти числовых столбцов */
+.rowName {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.4rem;
+  max-width: 11rem;
+}
+.rowName i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.rowName b {
+  font-weight: 600;
+}
+
+/* ——— полосы по пунктам ——— */
+.siteBlock {
+  padding: 0.8rem 0.9rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(5, 7, 13, 0.4);
+}
+.legendInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+.dotOk,
+.dotBad {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.dotOk {
+  background: #2a6fb0;
+}
+.dotBad {
+  background: #d03b3b;
+  margin-left: 0.4rem;
+}
+.stripRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.stripRow {
+  display: grid;
+  grid-template-columns: minmax(6rem, 11rem) 1fr 4.5rem minmax(0, 11rem);
+  align-items: center;
+  gap: 0.7rem;
+}
+.stripName {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stripName i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.stripCell {
+  min-width: 0;
+}
+.stripScore {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: #e2e8f0;
+}
+.stripScore[data-below] {
+  color: #f87171;
+}
+.stripNote {
+  font-size: 0.68rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stripAxisRow {
+  display: flex;
+  justify-content: space-between;
+  /* выравниваем ось по колонке полос: подпись + gap слева, три колонки справа */
+  margin-left: calc(min(11rem, max(6rem, 20%)) + 0.7rem);
+  margin-right: calc(4.5rem + 11rem + 1.4rem);
+  padding-top: 0.1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.64rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+  .stripRow {
+    grid-template-columns: minmax(5rem, 8rem) 1fr 4.2rem;
+  }
+  .stripNote {
+    display: none;
+  }
+  .stripAxisRow {
+    margin-right: calc(4.2rem + 0.7rem);
+  }
+}

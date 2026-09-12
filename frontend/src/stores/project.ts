@@ -55,6 +55,18 @@ export interface ProjectState extends Derived {
   variants: Variant[]
 
   /**
+   * Что участвует в сравнении и что взято за базу.
+   *
+   * Раньше базой молча становился первый сохранённый вариант. Это неверно:
+   * база — это «как было», и выбирает её инженер. Набор участников тоже
+   * его выбор: сохранённых вариантов за сессию набирается десяток,
+   * а сравнивают одновременно два-три.
+   */
+  compareIds: string[]
+  baseVariantId: string | null
+  compareOpen: boolean
+
+  /**
    * Параметры расчёта такими, какими они пришли из файла сценария.
    * Нужны, чтобы честно показать в панели «изменено с 3000 км»:
    * кейс задаёт environment как условия набора, и отклонение от них
@@ -116,6 +128,13 @@ export interface ProjectState extends Derived {
   saveVariant(label?: string): void
   restoreVariant(id: string): void
   removeVariant(id: string): void
+  renameVariant(id: string, label: string): void
+  setVariantNote(id: string, note: string): void
+  toggleCompare(id: string): void
+  setCompareIds(ids: string[]): void
+  setBaseVariant(id: string): void
+  openCompare(ids?: string[]): void
+  closeCompare(): void
 }
 
 /** Пересчёт производных полей. Вызывается всюду, где меняется scenario или result. */
@@ -133,16 +152,27 @@ function derive(scenario: Scenario | null, result: SimulateResponse | null): Der
 function loadVariants(): Variant[] {
   try {
     const raw = localStorage.getItem(VARIANTS_KEY)
-    return raw ? (JSON.parse(raw) as Variant[]) : []
+    const list = raw ? (JSON.parse(raw) as Variant[]) : []
+    // варианты, сохранённые до появления seq, донумеровываем по порядку:
+    // цвет серии должен быть у каждого
+    return list.map((v, i) => (v.seq ? v : { ...v, seq: i + 1 }))
   } catch {
     return []
   }
+}
+
+/** Следующий незанятый номер: номера не переиспользуются после удаления. */
+function nextSeq(variants: Variant[]): number {
+  return variants.reduce((m, v) => Math.max(m, v.seq ?? 0), 0) + 1
 }
 
 export const useProject = create<ProjectState>((set, get) => ({
   scenario: null,
   result: null,
   variants: loadVariants(),
+  compareIds: [],
+  baseVariantId: null,
+  compareOpen: false,
   envBaseline: null,
 
   committed: null,
@@ -384,17 +414,25 @@ export const useProject = create<ProjectState>((set, get) => ({
   // ---- варианты ----
 
   saveVariant(label) {
-    const { scenario, result, variants, stale } = get()
+    const { scenario, result, variants, stale, compareIds, baseVariantId } = get()
     if (!scenario || !result || stale) return
+    const seq = nextSeq(variants)
     const v: Variant = {
       id: crypto.randomUUID(),
-      label: label?.trim() || describeScenario(scenario),
+      label: label?.trim() || `Вариант ${seq}`,
+      seq,
       scenario: structuredClone(scenario) as Scenario,
       result,
       createdAt: Date.now(),
     }
     const next = [...variants, v]
-    set({ variants: next, notice: `Вариант «${v.label}» сохранён` })
+    set({
+      variants: next,
+      // новый вариант сразу попадает в сравнение: его затем и сохраняли
+      compareIds: [...compareIds, v.id],
+      baseVariantId: baseVariantId ?? v.id,
+      notice: `«${v.label}» сохранён${next.length > 1 ? ' — можно сравнивать' : ''}`,
+    })
     persist(next, set)
   },
 
@@ -418,8 +456,69 @@ export const useProject = create<ProjectState>((set, get) => ({
 
   removeVariant(id) {
     const next = get().variants.filter((v) => v.id !== id)
+    const compareIds = get().compareIds.filter((x) => x !== id)
+    const base = get().baseVariantId
+    set({
+      variants: next,
+      compareIds,
+      baseVariantId: base === id ? (compareIds[0] ?? next[0]?.id ?? null) : base,
+      compareOpen: compareIds.length >= 2 ? get().compareOpen : false,
+    })
+    persist(next, set)
+  },
+
+  renameVariant(id, label) {
+    const clean = label.trim()
+    if (!clean) return
+    const next = get().variants.map((v) => (v.id === id ? { ...v, label: clean } : v))
     set({ variants: next })
     persist(next, set)
+  },
+
+  setVariantNote(id, note) {
+    const next = get().variants.map((v) => (v.id === id ? { ...v, note: note.trim() } : v))
+    set({ variants: next })
+    persist(next, set)
+  },
+
+  toggleCompare(id) {
+    const { compareIds, baseVariantId } = get()
+    const on = compareIds.includes(id)
+    const ids = on ? compareIds.filter((x) => x !== id) : [...compareIds, id]
+    set({
+      compareIds: ids,
+      baseVariantId:
+        baseVariantId && ids.includes(baseVariantId) ? baseVariantId : (ids[0] ?? null),
+    })
+  },
+
+  setCompareIds(ids) {
+    const { baseVariantId } = get()
+    set({
+      compareIds: ids,
+      baseVariantId:
+        baseVariantId && ids.includes(baseVariantId) ? baseVariantId : (ids[0] ?? null),
+    })
+  },
+
+  setBaseVariant(id) {
+    set({ baseVariantId: id })
+  },
+
+  openCompare(ids) {
+    const { variants, compareIds, baseVariantId } = get()
+    // по умолчанию сравниваем два последних: чаще всего это «до» и «после»
+    const fallback = variants.slice(-2).map((v) => v.id)
+    const use = ids ?? (compareIds.length >= 2 ? compareIds : fallback)
+    set({
+      compareIds: use,
+      baseVariantId: baseVariantId && use.includes(baseVariantId) ? baseVariantId : (use[0] ?? null),
+      compareOpen: use.length >= 1,
+    })
+  },
+
+  closeCompare() {
+    set({ compareOpen: false })
   },
 }))
 
@@ -468,23 +567,22 @@ function persist(variants: Variant[], set: Setter) {
   }
 }
 
-/** Короткая подпись варианта: что отличается от базы. */
+/**
+ * Короткая сводка конфигурации для карточки варианта.
+ *
+ * Раньше здесь перечислялись RAAN и фаза всех плоскостей — строка вида
+ * «P1:0/0.0 P2:120/11.2 P3:240/22.5» читалась как дамп памяти и в карточку
+ * не влезала. Отличия от базы показывает дифф (lib/compare), а сводка
+ * отвечает на другой вопрос: что это за конфигурация вообще.
+ */
 export function describeScenario(s: Scenario): string {
-  const planes = s.design.planes
-    .map((p) => `${p.id}:${p.raan_deg.toFixed(0)}/${p.phase_deg.toFixed(1)}`)
-    .join(' ')
-  const parts = [`очередь ${s.design.launch_stage}`, planes]
-  // ISL и порог теперь редактируются, поэтому входят в подпись:
-  // без них два варианта с разной дальностью связи выглядели бы одинаково
-  parts.push(`ISL ${s.environment.isl_range_km} км`)
-  parts.push(`порог ${s.environment.min_elevation_deg}°`)
+  const active = s.design.satellites.filter((x) => x.launch_batch <= s.design.launch_stage).length
+  const parts = [
+    `очередь ${s.design.launch_stage}`,
+    `${active} апп.`,
+    `ISL ${s.environment.isl_range_km} км`,
+    `порог ${s.environment.min_elevation_deg}°`,
+  ]
   if (s.failures.length) parts.push(`отказов ${s.failures.length}`)
-  return parts.join(', ')
-}
-
-export const REASON_LABEL: Record<OutageReason, string> = {
-  no_sat: 'Нет видимого спутника',
-  isl_break: 'Разрыв межспутниковой сети',
-  no_gw: 'Шлюз не видит аппаратов',
-  gw_down: 'Шлюз недоступен',
+  return parts.join(' · ')
 }

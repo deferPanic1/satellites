@@ -1,8 +1,24 @@
-import { useMemo } from 'react'
-import { ActionIcon, Button, Table } from '@mantine/core'
-import { IconBookmark, IconHistory, IconTrash } from '@tabler/icons-react'
-import { describeScenario, REASON_LABEL, useProject } from '../stores/project'
-import { usePlayback } from '../stores/playback'
+/**
+ * Панель показателей: только обзор.
+ *
+ * Раньше эта панель в 24rem держала четыре разные задачи — вердикт, разбор
+ * по пунктам, список вариантов и таблицу сравнения. Таблица в такую ширину
+ * не влезала физически (в CSS стояли nowrap и обрезка подписей), а открытая
+ * раскрывашка пункта выталкивала сравнение за пределы экрана.
+ *
+ * Теперь здесь карточки: по одной на наземный пункт, с полосой доступности,
+ * ховером и сворачиваемыми подробностями. Варианты живут на своей вкладке,
+ * а тяжёлое сравнение — в модальном окне на всю ширину.
+ */
+
+import { useMemo, useState } from 'react'
+import { Badge } from '@mantine/core'
+import { IconChevronRight } from '@tabler/icons-react'
+import { useProject } from '../stores/project'
+import { selectStepIndex, usePlayback } from '../stores/playback'
+import { AvailabilityStrip, Tile } from './charts/Charts'
+import { fmtDurShort, fmtKm, fmtPct, REASON_SHORT, STATUS } from '../lib/viz'
+import type { Gap, OutageReason } from '../types/api'
 import s from './MetricsPanel.module.css'
 
 interface Row {
@@ -10,229 +26,274 @@ interface Row {
   visibility: number
   availability: number
   maxGap: number
-  gaps: number
+  totalOutage: number
+  gaps: Gap[]
   avgHops: number
+  maxHops: number | null
   avgKm: number | null
   /** изменение доступности относительно предыдущего расчёта */
   delta: number | null
+  /** ниже порога, заданного в сценарии; null — порог не задан */
+  below: boolean | null
+  routes: string[][]
+  reasons: (OutageReason | null)[]
+  /** сколько времени без связи дала каждая причина */
+  byReason: { reason: string; sec: number }[]
 }
-
-const fmtGap = (sec: number) =>
-  sec >= 3600 ? `${(sec / 3600).toFixed(1)} ч` : `${Math.round(sec / 60)} мин`
 
 export function MetricsPanel() {
   const result = useProject((x) => x.result)
   const previousResult = useProject((x) => x.previousResult)
   const stale = useProject((x) => x.stale)
-  const variants = useProject((x) => x.variants)
   const selectedClient = useProject((x) => x.selectedClient)
   const setSelectedClient = useProject((x) => x.setSelectedClient)
-  const saveVariant = useProject((x) => x.saveVariant)
-  const restoreVariant = useProject((x) => x.restoreVariant)
-  const removeVariant = useProject((x) => x.removeVariant)
+  const stepS = useProject((x) => x.stepS)
   const seek = usePlayback((x) => x.seek)
+  const stepIndex = usePlayback(selectStepIndex)
+
+  const [openClient, setOpenClient] = useState<string | null>(null)
+
+  /**
+   * Порог доступности задаёт пользователь в сценарии. Если его нет,
+   * интерфейс просто не делит пункты на «в пороге» и «ниже».
+   */
+  const targetPct = useMemo(() => {
+    const t = result?.meta.target_availability
+    return t && t > 0 ? t * 100 : null
+  }, [result])
 
   const rows = useMemo<Row[]>(() => {
     if (!result) return []
     return Object.entries(result.metrics).map(([client, m]) => {
       const before = previousResult?.metrics[client]?.availability_pct
+      const acc: Record<string, number> = {}
+      for (const g of m.gaps ?? []) {
+        const key = g.reason ?? 'isl_break'
+        acc[key] = (acc[key] ?? 0) + g.duration_s
+      }
       return {
         client,
         visibility: m.visibility_pct,
         availability: m.availability_pct,
         maxGap: m.max_gap_s,
-        gaps: m.gaps?.length ?? 0,
+        totalOutage: m.total_outage_s,
+        gaps: m.gaps ?? [],
         avgHops: m.hops?.avg ?? 0,
+        maxHops: m.hops?.max ?? null,
         avgKm: m.avg_path_km,
         delta: before === undefined ? null : m.availability_pct - before,
+        below: targetPct === null ? null : m.availability_pct < targetPct,
+        routes: result.routes[client] ?? [],
+        reasons: result.reasons?.[client] ?? [],
+        byReason: Object.entries(acc)
+          .map(([reason, sec]) => ({ reason, sec }))
+          .sort((a, b) => b.sec - a.sec),
       }
     })
-  }, [result, previousResult])
+  }, [result, previousResult, targetPct])
 
-  /** Сравнение вариантов: дельты доступности относительно первого сохранённого. */
-  const compare = useMemo(() => {
-    if (variants.length < 2) return null
-    const base = variants[0]
-    return { base, others: variants.slice(1), clients: Object.keys(base.result.metrics) }
-  }, [variants])
+  /** Вердикт: худший пункт, сколько пунктов в пороге, самый долгий перерыв. */
+  const verdict = useMemo(() => {
+    if (!rows.length) return null
+    const worst = rows.reduce((a, b) => (b.availability < a.availability ? b : a))
+    const longest = rows.reduce((a, b) => (b.maxGap > a.maxGap ? b : a))
+    const inTarget = targetPct === null ? null : rows.filter((r) => !r.below).length
+    return { worst, longest, inTarget, total: rows.length }
+  }, [rows, targetPct])
 
-  /**
-   * Лучший вариант максимизирует результат самого слабого клиентского пункта.
-   * Так высокий процент у двух клиентов не скрывает провал у третьего.
-   */
-  const bestVariantId = useMemo(() => {
-    if (variants.length < 2) return null
-    return variants.reduce((best, current) =>
-      current.result.summary.worst_availability_pct >
-      best.result.summary.worst_availability_pct
-        ? current
-        : best,
-    ).id
-  }, [variants])
+  if (!verdict) {
+    return <p className={`${s.hint} ${s.pad}`}>Расчёт ещё не выполнен.</p>
+  }
 
-  const gaps = (selectedClient && result?.metrics[selectedClient]?.gaps) || []
+  function pickClient(client: string) {
+    setSelectedClient(client)
+    setOpenClient((prev) => (prev === client ? null : client))
+  }
 
   return (
-    <div className={s.panel}>
-      {result && (
-        <section data-stale={stale || undefined} className={s.results}>
-          <div className={s.head}>
-            <h3>Показатели по пунктам</h3>
-            {stale && <span className={s.staleLabel}>Результат требует пересчёта</span>}
-          </div>
-
-          <div className={s.tableScroll}>
-            <Table highlightOnHover fz="xs" verticalSpacing={4} horizontalSpacing={6}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Пункт</Table.Th>
-                  <Table.Th>Видимость</Table.Th>
-                  <Table.Th>Связь</Table.Th>
-                  <Table.Th>Макс. перерыв</Table.Th>
-                  <Table.Th>Перерывов</Table.Th>
-                  <Table.Th>Хопов</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((r) => (
-                  <Table.Tr
-                    key={r.client}
-                    className={s.row}
-                    data-selected={r.client === selectedClient || undefined}
-                    onClick={() => setSelectedClient(r.client)}
-                  >
-                    <Table.Td className={s.mono}>{r.client}</Table.Td>
-                    <Table.Td>{r.visibility.toFixed(2)} %</Table.Td>
-                    <Table.Td>
-                      {r.availability.toFixed(2)} %
-                      {r.delta !== null && Math.abs(r.delta) >= 0.005 && (
-                        <span className={r.delta >= 0 ? s.deltaUp : s.deltaDown}>
-                          {r.delta > 0 ? '+' : ''}
-                          {r.delta.toFixed(2)}
-                        </span>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{fmtGap(r.maxGap)}</Table.Td>
-                    <Table.Td>{r.gaps}</Table.Td>
-                    <Table.Td>{r.avgHops.toFixed(2)}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-
-          {previousResult && !stale && (
-            <p className={s.hint}>Мелким шрифтом — изменение к предыдущему расчёту.</p>
-          )}
-          <p className={s.hint}>
-            Видимость — доля отсчётов, где виден хотя бы один активный аппарат. Связь — доля
-            отсчётов, где существует сквозной маршрут до шлюза. Разница между ними и есть суть
-            задачи.
-          </p>
-        </section>
-      )}
-
-      {result && selectedClient && (
-        <section>
-          <h3>Перерывы связи · {selectedClient}</h3>
-          {gaps.length ? (
-            <div className={s.gaps}>
-              {gaps.map((g, i) => (
-                <button key={i} className={s.gap} onClick={() => seek(g.start_s)}>
-                  <span className={s.mono}>{(g.start_s / 3600).toFixed(2)} ч</span>
-                  <span className={s.dur}>{fmtGap(g.duration_s)}</span>
-                  <span className={s.reason}>{g.reason ? REASON_LABEL[g.reason] : ''}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className={s.hint}>Перерывов нет</p>
-          )}
-        </section>
+    <div className={s.panel} data-stale={stale || undefined}>
+      {stale && (
+        <div className={s.staleBanner}>
+          Показатели относятся к прежней конфигурации — пересчитайте, чтобы обновить.
+        </div>
       )}
 
       <section>
-        <div className={s.head}>
-          <h3>Сохранённые варианты</h3>
-          <Button
-            variant="outline"
-            leftSection={<IconBookmark size={14} />}
-            disabled={!result || stale}
-            title={stale ? 'Сначала пересчитайте изменения или отмените их' : undefined}
-            onClick={() => saveVariant()}
-          >
-            Сохранить текущий
-          </Button>
+        <div className={s.tiles}>
+          <Tile
+            label="Худший пункт"
+            value={verdict.worst.availability.toFixed(2)}
+            unit="%"
+            alarm={verdict.worst.below || undefined}
+            meter={{
+              fill: verdict.worst.availability / 100,
+              mark: targetPct === null ? null : targetPct / 100,
+            }}
+            note={
+              <>
+                {verdict.worst.client}
+                {verdict.worst.below ? ' · ниже порога' : targetPct !== null ? ' · в пороге' : ''}
+              </>
+            }
+          />
+          {verdict.inTarget !== null && (
+            <Tile
+              label="В пороге"
+              value={`${verdict.inTarget}/${verdict.total}`}
+              alarm={verdict.inTarget < verdict.total}
+              note={`порог ${targetPct?.toFixed(0)} % времени`}
+            />
+          )}
+          <Tile
+            label="Макс. перерыв"
+            value={fmtDurShort(verdict.longest.maxGap)}
+            note={
+              <>
+                {verdict.longest.client} · {fmtDurShort(verdict.longest.totalOutage)} без связи
+                всего
+              </>
+            }
+          />
         </div>
-
-        {!variants.length ? (
-          <p className={s.hint}>Сохраните минимум два варианта, чтобы увидеть сравнение.</p>
-        ) : (
-          <ul className={s.variants}>
-            {variants.map((v) => (
-              <li key={v.id}>
-                <div className={s.vMain}>
-                  <strong>{v.label}</strong>
-                  <span className={s.hint}>{describeScenario(v.scenario)}</span>
-                </div>
-                <span className={s.variantScore}>
-                  {bestVariantId === v.id && <small>лучший</small>}
-                  {v.result.summary.worst_availability_pct.toFixed(2)} %
-                </span>
-                <ActionIcon variant="subtle" color="gray" radius="xl" onClick={() => restoreVariant(v.id)}>
-                  <IconHistory size={14} />
-                </ActionIcon>
-                <ActionIcon variant="subtle" color="red" radius="xl" onClick={() => removeVariant(v.id)}>
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
-      {compare && (
-        <section>
-          <h3>Сравнение с «{compare.base.label}»</h3>
-          <table className={s.cmp}>
-            <thead>
-              <tr>
-                <th>Вариант</th>
-                {compare.clients.map((c) => (
-                  <th key={c}>{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className={s.base}>{compare.base.label}</td>
-                {compare.clients.map((c) => (
-                  <td key={c}>
-                    {compare.base.result.metrics[c]?.availability_pct.toFixed(2)} %
-                  </td>
-                ))}
-              </tr>
-              {compare.others.map((v) => (
-                <tr key={v.id}>
-                  <td>{v.label}</td>
-                  {compare.clients.map((c) => {
-                    const m = v.result.metrics[c]
-                    if (!m) return <td key={c}>—</td>
-                    const delta =
-                      m.availability_pct - (compare.base.result.metrics[c]?.availability_pct ?? 0)
-                    return (
-                      <td key={c}>
-                        {m.availability_pct.toFixed(2)} %{' '}
-                        <span className={delta >= 0 ? s.ok : s.bad}>({delta.toFixed(2)})</span>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <section>
+        <div className={s.head}>
+          <h3>Наземные пункты</h3>
+          <span className={s.legend}>
+            <i className={s.dotOk} /> связь
+            <i className={s.dotBad} /> перерыв
+          </span>
+        </div>
+
+        <div className={s.cards}>
+          {rows.map((r) => {
+            const open = r.client === openClient
+            return (
+              <article
+                key={r.client}
+                className={s.card}
+                data-selected={r.client === selectedClient || undefined}
+                data-open={open || undefined}
+              >
+                <button
+                  type="button"
+                  className={s.cardHead}
+                  aria-expanded={open}
+                  onClick={() => pickClient(r.client)}
+                >
+                  <span className={s.mono}>{r.client}</span>
+                  {r.below === false && (
+                    <Badge size="xs" variant="light" color="green">
+                      порог
+                    </Badge>
+                  )}
+                  {r.below === true && (
+                    <Badge size="xs" variant="light" color="red">
+                      ниже порога
+                    </Badge>
+                  )}
+                  <span className={s.score}>
+                    <b data-below={r.below || undefined}>{fmtPct(r.availability)}</b>
+                    {r.delta !== null && Math.abs(r.delta) >= 0.005 && (
+                      <span className={r.delta >= 0 ? s.deltaUp : s.deltaDown}>
+                        {r.delta > 0 ? '+' : '−'}
+                        {Math.abs(r.delta).toFixed(2)}
+                      </span>
+                    )}
+                  </span>
+                  <IconChevronRight size={13} className={s.chev} />
+                </button>
+
+                <div className={s.cardStrip}>
+                  <AvailabilityStrip
+                    routes={r.routes}
+                    reasons={r.reasons}
+                    stepS={stepS}
+                    height={14}
+                    axis
+                    cursorStep={stepIndex}
+                    onSeek={seek}
+                  />
+                </div>
+
+                <p className={s.cardSummary}>
+                  видимость {r.visibility.toFixed(1)} % · перерывов {r.gaps.length} · макс{' '}
+                  {fmtDurShort(r.maxGap)} · {r.avgHops.toFixed(2)} перехода
+                </p>
+
+                {open && (
+                  <div className={s.detail}>
+                    <dl className={s.facts}>
+                      <dt>видимость спутника</dt>
+                      <dd>{r.visibility.toFixed(2)} %</dd>
+                      <dt>сквозной маршрут</dt>
+                      <dd>{r.availability.toFixed(2)} %</dd>
+                      <dt>без связи всего</dt>
+                      <dd>{fmtDurShort(r.totalOutage)}</dd>
+                      <dt>переходов (сред./макс.)</dt>
+                      <dd>
+                        {r.avgHops.toFixed(2)} / {r.maxHops ?? '—'}
+                      </dd>
+                      <dt>длина маршрута</dt>
+                      <dd>{fmtKm(r.avgKm)}</dd>
+                    </dl>
+
+                    {r.byReason.length > 0 && (
+                      <>
+                        <h4>Причины перерывов</h4>
+                        <ul className={s.reasons}>
+                          {r.byReason.map((x) => (
+                            <li key={x.reason}>
+                              <span>{REASON_SHORT[x.reason] ?? x.reason}</span>
+                              <i
+                                className={s.reasonBar}
+                                style={{
+                                  width: `${(x.sec / Math.max(1, r.totalOutage)) * 100}%`,
+                                  background: STATUS.critical,
+                                }}
+                              />
+                              <b>{fmtDurShort(x.sec)}</b>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+
+                    {r.gaps.length > 0 && (
+                      <>
+                        <h4>Перерывы · клик переводит шкалу</h4>
+                        <div className={s.gaps}>
+                          {r.gaps.map((g, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className={s.gap}
+                              onClick={() => seek(g.start_s)}
+                            >
+                              <span className={s.mono}>{(g.start_s / 3600).toFixed(2)} ч</span>
+                              <span className={s.dur}>{fmtDurShort(g.duration_s)}</span>
+                              <span className={s.reason}>
+                                {g.reason ? REASON_SHORT[g.reason] : ''}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      <p className={s.hint}>
+        Видимость — доля отсчётов, где виден хотя бы один активный аппарат. Связь — доля отсчётов,
+        где существует сквозной маршрут до шлюза. Разница между ними и есть суть задачи.
+        {previousResult && !stale && ' Мелким шрифтом у процента — изменение к предыдущему расчёту.'}
+      </p>
     </div>
   )
 }

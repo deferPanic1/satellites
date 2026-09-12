@@ -54,7 +54,7 @@
   display: grid;
   --rail: 2.75rem;
   --left-full: 19rem;
-  --right-full: 24rem;
+  --right-full: 25rem;
   --left: var(--left-full);
   --right: var(--right-full);
   grid-template-columns: var(--left) 1fr var(--right);
@@ -240,8 +240,23 @@
 @media (max-width: 1400px) {
   .main {
     --left-full: 17rem;
-    --right-full: 20rem;
+    --right-full: 22rem;
   }
+}
+
+/* счётчик сохранённых вариантов на ярлыке вкладки */
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
 }
 @media (prefers-reduced-motion: reduce) {
   .main,

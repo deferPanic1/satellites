@@ -1,0 +1,132 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.top {
+  padding: 0.9rem 0.9rem 0.6rem;
+  flex: none;
+}
+/* список не растягивается на всю высоту: при одном варианте кнопка сравнения
+   не должна уезжать в подвал через полэкрана пустоты. Когда карточек много,
+   flex-shrink отдаёт списку остаток и он начинает скроллиться. */
+.list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'check body' 'actions actions';
+  align-items: start;
+  gap: 0.15rem 0.5rem;
+  padding: 0.5rem 0.55rem 0.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  /* цвет серии закреплён за номером варианта: он же на графиках сравнения */
+  border-left: 4px solid var(--tint);
+  border-radius: 8px;
+  background: rgba(5, 7, 13, 0.5);
+}
+.card[data-checked] {
+  background: rgba(56, 189, 248, 0.06);
+  border-color: rgba(56, 189, 248, 0.3);
+  /* метку серии возвращаем после общего border-color: по ней вариант
+     узнаётся на графиках сравнения */
+  border-left-color: var(--tint);
+}
+.check {
+  grid-area: check;
+  padding-top: 0.15rem;
+}
+.body {
+  grid-area: body;
+  min-width: 0;
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.titleRow strong {
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rename {
+  flex: 1;
+}
+.score {
+  margin-left: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+.sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+.chip {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.08);
+  color: #7dd3fc;
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+.actions {
+  grid-area: actions;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.1rem;
+  margin-top: 0.1rem;
+}
+.footer {
+  flex: none;
+  padding: 0.6rem 0.9rem 0.9rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+.hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1.2rem;
+  text-align: center;
+  color: #64748b;
+}
+.empty p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}

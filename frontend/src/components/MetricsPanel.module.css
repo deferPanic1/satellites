@@ -1,81 +1,220 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 1.4rem;
-  padding: 1rem;
+  gap: 1.2rem;
+  padding: 0.9rem;
   overflow-y: auto;
   height: 100%;
+}
+.pad {
+  padding: 1rem;
 }
 .head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.5rem;
   gap: 0.5rem;
 }
 .panel h3 {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #94a3b8;
 }
-.staleLabel {
-  color: #94a3b8;
-  font-size: 0.7rem;
-  line-height: 1.3;
-  text-align: right;
+.staleBanner {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(250, 178, 25, 0.35);
+  border-radius: 6px;
+  background: rgba(250, 178, 25, 0.08);
+  color: #fcd34d;
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
-.tableScroll {
-  max-width: 100%;
-  overflow-x: auto;
-  padding-bottom: 0.2rem;
+.panel[data-stale] .cards,
+.panel[data-stale] .tiles {
+  opacity: 0.5;
 }
-.tableScroll table {
-  min-width: 23.5rem;
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.2rem, 1fr));
+  gap: 0.5rem;
 }
-.row {
+
+/* ——— легенда шкалы состояния ——— */
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+.dotOk,
+.dotBad {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.dotOk {
+  background: #2a6fb0;
+}
+.dotBad {
+  background: #d03b3b;
+  margin-left: 0.35rem;
+}
+
+/* ——— карточка наземного пункта ——— */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.card {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-left: 2px solid transparent;
+  border-radius: 8px;
+  background: rgba(5, 7, 13, 0.5);
+  overflow: visible;
+}
+.card[data-selected] {
+  border-left-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.06);
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem 0.35rem;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.row[data-selected] {
-  background: rgba(56, 189, 248, 0.12);
+.cardHead:hover {
+  background: rgba(148, 163, 184, 0.05);
 }
-.hint {
-  font-size: 0.72rem;
-  color: #64748b;
-  margin: 0.5rem 0 0;
-  line-height: 1.5;
+.cardHead:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
 }
-.mono {
-  font-family: ui-monospace, monospace;
+.score {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
 }
-.ok {
-  color: #4ade80;
+.score b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
-.bad {
+.score b[data-below] {
   color: #f87171;
+}
+.chev {
+  flex: none;
+  color: #64748b;
+  transition: transform 150ms ease;
+}
+.card[data-open] .chev {
+  transform: rotate(90deg);
+  color: #38bdf8;
+}
+.cardStrip {
+  padding: 0 0.6rem;
+}
+.cardSummary {
+  margin: 0.35rem 0 0;
+  padding: 0 0.6rem 0.55rem;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+.detail {
+  padding: 0.1rem 0.6rem 0.7rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.73rem;
+}
+.facts dt {
+  color: #64748b;
+}
+.facts dd {
+  margin: 0;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+.detail h4 {
+  margin: 0.8rem 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+/* причины: полоса задаёт долю, число — абсолют, подпись — идентичность */
+.reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.reasons li {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+.reasonBar {
+  height: 8px;
+  min-width: 2px;
+  border-radius: 2px;
+  display: block;
+}
+.reasons b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  font-weight: 500;
 }
 .gaps {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.3rem;
   max-height: 9rem;
   overflow-y: auto;
 }
 .gap {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.35rem;
   align-items: baseline;
-  padding: 0.25rem 0.5rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 6px;
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(208, 59, 59, 0.35);
+  background: rgba(208, 59, 59, 0.08);
   color: #fca5a5;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   cursor: pointer;
 }
 .gap:hover {
-  background: rgba(248, 113, 113, 0.18);
+  background: rgba(208, 59, 59, 0.2);
 }
 .dur {
   font-weight: 600;
@@ -83,84 +222,19 @@
 .reason {
   color: #94a3b8;
 }
-.variants {
-  list-style: none;
-  padding: 0;
+.hint {
+  font-size: 0.7rem;
+  color: #64748b;
   margin: 0;
+  line-height: 1.5;
 }
-.variants li {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-}
-.vMain {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.vMain strong {
-  font-size: 0.82rem;
-}
-.vMain .hint {
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.variantScore {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  color: #e2e8f0;
-  font-family: ui-monospace, monospace;
-  white-space: nowrap;
-}
-.variantScore small {
-  color: #4ade80;
-  font-family: inherit;
-  font-size: 0.62rem;
-  line-height: 1;
-}
-.cmp {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-.cmp th,
-.cmp td {
-  padding: 0.3rem 0.5rem;
-  text-align: right;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-}
-.cmp th:first-child,
-.cmp td:first-child {
-  text-align: left;
-  max-width: 9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.base {
-  color: #94a3b8;
-}
-
-/* значения не переносим, а заголовки пусть переносятся — иначе таблица
-   шире панели в 24rem */
-.panel table td {
-  white-space: nowrap;
-}
-
-/* результат относится к прежней конфигурации — приглушаем, но не прячем */
-.results[data-stale] {
-  opacity: 0.45;
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .deltaUp,
 .deltaDown {
-  margin-left: 0.3rem;
   font-size: 0.66rem;
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .deltaUp {
   color: #4ade80;
