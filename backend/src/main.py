@@ -3,6 +3,7 @@ import fastapi.middleware.gzip
 
 import src.api.validation_router
 import src.api.scenarios_router
+import src.api.simulation_router
 
 
 MIN_COMPRESSION_THRESHHOLD: int = 1000
@@ -19,7 +20,8 @@ app.add_middleware(
 )
 
 app.include_router(src.api.validation_router.router, prefix='/api')
-app.include_router(src.api.scenarios_router.router)
+app.include_router(src.api.scenarios_router.router, prefix='/api')
+app.include_router(src.api.simulation_router.router, prefix='/api')
 
 
 @app.get('/api/health/')

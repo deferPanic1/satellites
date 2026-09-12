@@ -34,6 +34,11 @@ class ScenarioListItem(msgspec.Struct):
     n_failures: int | None = None
 
 
+class Timestamp(msgspec.Struct):
+    t_s: int
+    snapshot: ScenarioListItem
+
+
 # class ScenarioSummary(msgspec.Struct):
 #     n_active_satellites: int
 #     n_satellites: int

@@ -1,4 +1,5 @@
 {
+  "optimization_criteria": "min_hops",
   "schema_version": "cosmo-A-1.0",
   "meta": {
     "id": "01_full_constellation",

@@ -1,5 +1,4 @@
 import collections
-import dataclasses
 import enum
 import heapq
 
@@ -30,6 +29,12 @@ class Vertex(str):
     @property
     def type_vertex(self) -> VertexType:
         return vertex_id2vertex_type(self)
+    
+    def __str__(self) -> str:
+        return self
+
+    def __repr__(self) -> str:
+        return f"Vertex({super().__repr__()})"
 
 
 def edges2adj_list(
@@ -49,12 +54,10 @@ class ProcessedClient(msgspec.Struct):
     optimal_path: tuple[Vertex, ...] | None
 
 
-@dataclasses.dataclass(frozen=True)
 class HopesProcessedClient(ProcessedClient):
     min_hopes: int | None
 
 
-@dataclasses.dataclass(frozen=True)
 class DistanceProcessedClient(ProcessedClient):
     min_distance: float | None
 
