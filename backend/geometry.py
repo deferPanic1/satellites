@@ -90,7 +90,7 @@ def snapshot(s: dict, t_s: float) -> dict:
     lam = np.clip(-np.sum(xyz[i] * delta, axis=1) / np.maximum(denom, 1e-12), 0, 1)
     closest = np.linalg.norm(xyz[i] + lam[:, None] * delta, axis=1)
     ok = (dist < e['isl_range_km']) & (closest > R) & active[i] & active[j]
-    edges = [[ids[a], ids[b], float(dd)] for a, b, dd in zip(i[ok], j[ok], dist[ok])]
+    edges = [(ids[a], ids[b], float(dd)) for a, b, dd in zip(i[ok], j[ok], dist[ok])]
     elevations = {}
     for g in s['ground_sites']:
         gp = ground_position(g)
@@ -100,7 +100,7 @@ def snapshot(s: dict, t_s: float) -> dict:
         elevations[g['id']] = {sid: float(el[k]) for k, sid in enumerate(ids) if active[k]}
         offline = any((f['gateway_id'] == g['id'] and f['start_s'] <= t_s < f['end_s'] for f in s['gateway_outages']))
         vis = (el >= e['min_elevation_deg']) & active & (not offline)
-        edges.extend([[g['id'], ids[k], float(dl[k])] for k in np.where(vis)[0]])
+        edges.extend([(g['id'], ids[k], float(dl[k])) for k in np.where(vis)[0]])
     return {'t_s': t_s, 'satellites': [{'id': sid, 'x_km': float(xyz[k, 0]), 'y_km': float(xyz[k, 1]), 'z_km': float(xyz[k, 2]), 'active': bool(active[k])} for k, sid in enumerate(ids)], 'edges': edges, 'elevation_deg': elevations}
 
 def sunlight(s: dict, t_s: float, sun_eci: list[float]) -> dict[str, bool]:
