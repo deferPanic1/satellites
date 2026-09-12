@@ -1,0 +1,359 @@
+{
+  "schema_version": "cosmo-A-1.0",
+  "meta": {
+    "id": "01_full_constellation",
+    "title": "Полная группировка"
+  },
+  "environment": {
+    "altitude_km": 550.0,
+    "inclination_deg": 87.0,
+    "earth_angle0_deg": 12.0,
+    "horizon_s": 86400,
+    "step_s": 120,
+    "min_elevation_deg": 10.0,
+    "isl_range_km": 3000.0,
+    "target_availability": 0.9
+  },
+  "design": {
+    "launch_stage": 3,
+    "planes": [
+      {
+        "id": "P1",
+        "raan_deg": 0.0,
+        "phase_deg": 0.0
+      },
+      {
+        "id": "P2",
+        "raan_deg": 60.0,
+        "phase_deg": 7.5
+      },
+      {
+        "id": "P3",
+        "raan_deg": 120.0,
+        "phase_deg": 15.0
+      }
+    ],
+    "satellites": [
+      {
+        "id": "S01",
+        "plane_id": "P1",
+        "slot_deg": 0.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S02",
+        "plane_id": "P1",
+        "slot_deg": 22.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S03",
+        "plane_id": "P1",
+        "slot_deg": 45.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S04",
+        "plane_id": "P1",
+        "slot_deg": 67.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S05",
+        "plane_id": "P1",
+        "slot_deg": 90.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S06",
+        "plane_id": "P1",
+        "slot_deg": 112.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S07",
+        "plane_id": "P1",
+        "slot_deg": 135.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S08",
+        "plane_id": "P1",
+        "slot_deg": 157.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S09",
+        "plane_id": "P1",
+        "slot_deg": 180.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S10",
+        "plane_id": "P1",
+        "slot_deg": 202.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S11",
+        "plane_id": "P1",
+        "slot_deg": 225.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S12",
+        "plane_id": "P1",
+        "slot_deg": 247.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S13",
+        "plane_id": "P1",
+        "slot_deg": 270.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S14",
+        "plane_id": "P1",
+        "slot_deg": 292.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S15",
+        "plane_id": "P1",
+        "slot_deg": 315.0,
+        "launch_batch": 1
+      },
+      {
+        "id": "S16",
+        "plane_id": "P1",
+        "slot_deg": 337.5,
+        "launch_batch": 1
+      },
+      {
+        "id": "S17",
+        "plane_id": "P2",
+        "slot_deg": 0.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S18",
+        "plane_id": "P2",
+        "slot_deg": 22.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S19",
+        "plane_id": "P2",
+        "slot_deg": 45.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S20",
+        "plane_id": "P2",
+        "slot_deg": 67.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S21",
+        "plane_id": "P2",
+        "slot_deg": 90.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S22",
+        "plane_id": "P2",
+        "slot_deg": 112.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S23",
+        "plane_id": "P2",
+        "slot_deg": 135.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S24",
+        "plane_id": "P2",
+        "slot_deg": 157.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S25",
+        "plane_id": "P2",
+        "slot_deg": 180.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S26",
+        "plane_id": "P2",
+        "slot_deg": 202.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S27",
+        "plane_id": "P2",
+        "slot_deg": 225.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S28",
+        "plane_id": "P2",
+        "slot_deg": 247.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S29",
+        "plane_id": "P2",
+        "slot_deg": 270.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S30",
+        "plane_id": "P2",
+        "slot_deg": 292.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S31",
+        "plane_id": "P2",
+        "slot_deg": 315.0,
+        "launch_batch": 2
+      },
+      {
+        "id": "S32",
+        "plane_id": "P2",
+        "slot_deg": 337.5,
+        "launch_batch": 2
+      },
+      {
+        "id": "S33",
+        "plane_id": "P3",
+        "slot_deg": 0.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S34",
+        "plane_id": "P3",
+        "slot_deg": 22.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S35",
+        "plane_id": "P3",
+        "slot_deg": 45.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S36",
+        "plane_id": "P3",
+        "slot_deg": 67.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S37",
+        "plane_id": "P3",
+        "slot_deg": 90.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S38",
+        "plane_id": "P3",
+        "slot_deg": 112.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S39",
+        "plane_id": "P3",
+        "slot_deg": 135.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S40",
+        "plane_id": "P3",
+        "slot_deg": 157.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S41",
+        "plane_id": "P3",
+        "slot_deg": 180.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S42",
+        "plane_id": "P3",
+        "slot_deg": 202.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S43",
+        "plane_id": "P3",
+        "slot_deg": 225.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S44",
+        "plane_id": "P3",
+        "slot_deg": 247.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S45",
+        "plane_id": "P3",
+        "slot_deg": 270.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S46",
+        "plane_id": "P3",
+        "slot_deg": 292.5,
+        "launch_batch": 3
+      },
+      {
+        "id": "S47",
+        "plane_id": "P3",
+        "slot_deg": 315.0,
+        "launch_batch": 3
+      },
+      {
+        "id": "S48",
+        "plane_id": "P3",
+        "slot_deg": 337.5,
+        "launch_batch": 3
+      }
+    ]
+  },
+  "ground_sites": [
+    {
+      "id": "G_MUR",
+      "name": "Murmansk reference gateway (synthetic installation)",
+      "role": "gateway",
+      "lat_deg": 68.97,
+      "lon_deg": 33.07
+    },
+    {
+      "id": "C65",
+      "name": "Northern terminal 65",
+      "role": "client",
+      "lat_deg": 65.0,
+      "lon_deg": 60.0
+    },
+    {
+      "id": "C70",
+      "name": "Northern terminal 70",
+      "role": "client",
+      "lat_deg": 70.0,
+      "lon_deg": 90.0
+    },
+    {
+      "id": "C72",
+      "name": "Northern terminal 72",
+      "role": "client",
+      "lat_deg": 72.0,
+      "lon_deg": 130.0
+    }
+  ],
+  "failures": [],
+  "gateway_outages": []
+}

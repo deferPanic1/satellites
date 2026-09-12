@@ -8,7 +8,7 @@ router = fastapi.APIRouter()
 
 @router.post('/validate')
 async def validation_endpoint(request: fastapi.Request) -> fastapi.Response:
-    scenario: src.schemas.scenario = request.json()
+    scenario: src.schemas.scenario = await request.json()
     result = src.services.validator.validate_scenario(scenario)
     
     return fastapi.Response(
