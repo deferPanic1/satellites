@@ -37,23 +37,33 @@ def get_all_base_scenarios() -> list[src.schemas.scenario.ScenarioListItem]:
     )
 
 
-# @router.get('/{id}', response_model=None)
-# def get_base_scenario(id: str) -> src.schemas.scenario.ScenarioListItem:
-#     path_to_base_scenario = DATA_DIR / f'{id}.json'
-#     if path_to_base_scenario.exists():
-#         return msgspec.json.decode(
-#             path_to_base_scenario.read_text(encoding='utf-8'),
-#             type=src.schemas.scenario.Scenario,
-#         )
+@router.get('/{id}', response_model=None)
+def get_base_scenario(id: str) -> src.schemas.scenario.ScenarioListItem:
+    path_to_base_scenario = DATA_DIR / f'{id}.json'
+    if path_to_base_scenario.exists():
+        scenario = msgspec.json.decode(
+            path_to_base_scenario.read_text(encoding='utf-8'),
+            type=src.schemas.scenario.Scenario,
+        )
+        return fastapi.Response(
+            content=msgspec.json.encode(scenario),
+            media_type='application/json',
+        )
 
-#     return fastapi.HTTPException(
-#         status_code=404,
-#         detail='Сценарий с таким id не найден',
-#     )
+    return fastapi.HTTPException(
+        status_code=404,
+        detail='Сценарий с таким id не найден',
+    )
 
 
-# @router.post('/upload', response_model=None)
-# def upload_scenario(
-#     scenario: src.schemas.scenario.Scenario,
-# ) -> src.services.validator.ValidationResponse:
-#     return src.services.validator.validate_scenario(scenario)
+@router.post('/upload', response_model=None)
+async def validation_endpoint(
+    request: fastapi.Request,
+) -> src.services.validator.ValidationResponse:
+    scenario: src.schemas.scenario = await request.json()
+    result = src.services.validator.validate_scenario(scenario)
+
+    return fastapi.Response(
+        content=msgspec.json.encode(result),
+        media_type='application/json',
+    )
