@@ -3,6 +3,7 @@ import dataclasses
 import enum
 import heapq
 
+import msgspec
 
 __all__ = ['get_min_hopes_stat', 'get_min_distance_stat']
 
@@ -42,8 +43,7 @@ def edges2adj_list(
     return d
 
 
-@dataclasses.dataclass(frozen=True)
-class ProcessedClient:
+class ProcessedClient(msgspec.Struct):
     id_client: str
     is_connected: bool
     optimal_path: tuple[Vertex, ...] | None

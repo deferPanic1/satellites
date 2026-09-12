@@ -1,4 +1,4 @@
-import typing
+import enum
 
 import msgspec
 
@@ -7,8 +7,13 @@ import src.schemas.plane
 import src.schemas.satelite
 
 
+class OptimizationCriteriaEnum(enum.StrEnum):
+    MIN_HOPS = 'min_hops'
+    MIN_DISTANCE = 'min_distance'
+
 
 class Scenario(msgspec.Struct):
+    optimization_criteria: OptimizationCriteriaEnum
     schema_version: str | None
     meta: dict | None
     environment: src.schemas.environment.Environment
