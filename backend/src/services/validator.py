@@ -1,6 +1,6 @@
 import msgspec
 
-import services.geometry
+import src.services.geometry
 import src.schemas.scenario
 
 
@@ -14,8 +14,8 @@ class ValidationResponse(msgspec.Struct):
 def validate_scenario(
     scenario: src.schemas.scenario.Scenario,
 ) -> list:
-    errors: list[services.geometry.ValidationError] = (
-        services.geometry.validate(scenario)
+    errors: list[src.services.geometry.ValidationError] = (
+        src.services.geometry.validate(scenario)
         )
     return ValidationResponse(
         is_valid=not bool(errors),

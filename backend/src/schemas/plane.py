@@ -1,6 +1,6 @@
 import msgspec
 
-import schemas.satelite
+import src.schemas.satelite
 
 
 class Plane(msgspec.Struct):
@@ -9,12 +9,11 @@ class Plane(msgspec.Struct):
     phase_deg: float
 
 
-@msgspec.dataclass
-class Planes:
+class Planes(msgspec.Struct):
     planes: list[Plane]
 
 
 class Design:
     launch_stage: int
     planes: Planes
-    satelites: schemas.satelite.Satelite
+    satelites: src.schemas.satelite.Satelite

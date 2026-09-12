@@ -1,11 +1,11 @@
 import msgspec
 
-import backend.src.schemas.plane
+import src.schemas.plane
 
 
 class Satelite(msgspec.Struct):
     id: str
-    plain_id: type[backend.src.schemas.plane.Plane.id]
+    plain_id: str
     slot_deg: float
     launch_batch: int
 
