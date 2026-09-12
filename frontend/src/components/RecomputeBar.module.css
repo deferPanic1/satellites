@@ -23,6 +23,7 @@
 }
 .chip {
   padding: 0.1rem 0.45rem;
+  border: 1px solid transparent;
   border-radius: 5px;
   background: rgba(148, 163, 184, 0.14);
   font-size: 0.72rem;
@@ -37,4 +38,15 @@
   display: flex;
   gap: 0.4rem;
   flex-shrink: 0;
+}
+
+/* снятый период недоступности отличается от добавленного: иначе список
+   правок читается как «я это добавил», хотя на самом деле удалил */
+.chip[data-kind='remove'] {
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.4);
+  border-style: dashed;
+}
+.chip[data-kind='remove'] .mono {
+  text-decoration: line-through;
 }

@@ -3,7 +3,11 @@
 .stripWrap {
   position: relative;
 }
+/* position: relative обязателен: риска текущего отсчёта внутри полосы
+   позиционируется от неё, иначе она считает границы от .stripWrap
+   вместе с осью и перечёркивает подписи часов под полосой */
 .strip {
+  position: relative;
   display: flex;
   width: 100%;
   border-radius: 3px;
@@ -31,6 +35,18 @@
   background: #d03b3b;
   min-width: 2px;
   flex-shrink: 0;
+}
+.segGap[data-reason='no_sat'] {
+  background: #d95926;
+}
+.segGap[data-reason='isl_break'] {
+  background: #d55181;
+}
+.segGap[data-reason='no_gw'] {
+  background: #c98500;
+}
+.segGap[data-reason='gw_down'] {
+  background: #9085e9;
 }
 .segOk:hover,
 .segGap:hover {
@@ -129,6 +145,9 @@
   grid-template-columns: var(--series-col, 0) 1fr auto;
   align-items: center;
   gap: 0.5rem;
+}
+.barRow:not(:has(.seriesLabel)) {
+  grid-template-columns: 1fr auto;
 }
 .seriesLabel {
   display: flex;

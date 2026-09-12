@@ -43,6 +43,54 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.1);
   font-size: 0.78rem;
 }
+.routeSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.38rem;
+  margin-top: 0.65rem;
+}
+.routeSummary > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.18rem 0.32rem;
+  min-width: 0;
+  padding: 0.48rem 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 7px;
+  background: rgba(5, 7, 13, 0.42);
+}
+.routeSummary svg {
+  grid-row: 1 / span 2;
+  color: #38bdf8;
+}
+.routeSummary span {
+  color: #64748b;
+  font-size: 0.6rem;
+}
+.routeSummary strong {
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.routeSummary small {
+  margin-left: 0.12rem;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 0.58rem;
+}
+.routeNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.38rem;
+  color: #64748b;
+  font-size: 0.62rem;
+  cursor: help;
+}
 .km {
   margin-left: auto;
   font-family: ui-monospace, monospace;
@@ -96,4 +144,25 @@
 }
 .mono {
   font-family: ui-monospace, monospace;
+}
+
+/* текущий пункт в заголовке маршрута — это ссылка на список пунктов,
+   где он и выбирается: отдельного выпадающего списка в шапке больше нет */
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.12rem 0.35rem 0.12rem 0.45rem;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.1);
+  color: #7dd3fc;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+.pick:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #e2e8f0;
 }

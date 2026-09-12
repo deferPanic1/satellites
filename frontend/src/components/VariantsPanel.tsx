@@ -7,38 +7,51 @@
  * (таблицы, графики, полосы на одной сетке), живёт там.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ActionIcon, Badge, Button, Checkbox, TextInput, Tooltip } from '@mantine/core'
 import {
-  IconBookmark,
   IconCheck,
   IconColumns2,
   IconCrosshair,
+  IconDownload,
   IconHistory,
   IconPencil,
   IconTrash,
+  IconUpload,
 } from '@tabler/icons-react'
-import { describeScenario, useProject } from '../stores/project'
-import { diffChips, viewOf } from '../lib/compare'
-import { fmtDurShort, variantColor } from '../lib/viz'
+import { useProject } from '../stores/project'
+import { diffChips, pickBest, viewOf } from '../lib/compare'
+import { fmtDurShort } from '../lib/viz'
+import { downloadVariantResult } from '../lib/resultExport'
 import s from './VariantsPanel.module.css'
 
 export function VariantsPanel() {
   const variants = useProject((x) => x.variants)
-  const result = useProject((x) => x.result)
-  const stale = useProject((x) => x.stale)
   const compareIds = useProject((x) => x.compareIds)
   const baseVariantId = useProject((x) => x.baseVariantId)
-  const saveVariant = useProject((x) => x.saveVariant)
   const restoreVariant = useProject((x) => x.restoreVariant)
   const removeVariant = useProject((x) => x.removeVariant)
   const renameVariant = useProject((x) => x.renameVariant)
   const toggleCompare = useProject((x) => x.toggleCompare)
   const setBaseVariant = useProject((x) => x.setBaseVariant)
   const openCompare = useProject((x) => x.openCompare)
+  const loadFile = useProject((x) => x.loadFile)
+  const busy = useProject((x) => x.busy)
 
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  /**
+   * Файл сразу становится сохранённым вариантом и попадает в сравнение.
+   * Иначе путь «сравнить с чужим сценарием» шёл через меню в шапке и
+   * ручное сохранение на другой вкладке — пять шагов вместо двух.
+   */
+  function onPick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (file) void loadFile(file, { asVariant: true })
+  }
 
   const views = useMemo(() => variants.map(viewOf), [variants])
   const base = views.find((v) => v.id === baseVariantId) ?? views[0] ?? null
@@ -47,10 +60,7 @@ export function VariantsPanel() {
    * Лучший вариант максимизирует результат самого слабого пункта: высокий
    * процент у двух пунктов не должен прятать провал у третьего.
    */
-  const bestId = useMemo(() => {
-    if (views.length < 2) return null
-    return views.reduce((a, v) => (v.agg.worstAvailability > a.agg.worstAvailability ? v : a)).id
-  }, [views])
+  const bestId = useMemo(() => (views.length < 2 ? null : pickBest(views).id), [views])
 
   const selected = compareIds.filter((id) => variants.some((v) => v.id === id))
 
@@ -61,47 +71,37 @@ export function VariantsPanel() {
 
   return (
     <div className={s.panel}>
-      <div className={s.top}>
-        <Button
-          fullWidth
-          variant="outline"
-          leftSection={<IconBookmark size={14} />}
-          disabled={!result || stale}
-          title={stale ? 'Сначала пересчитайте изменения или отмените их' : undefined}
-          onClick={() => saveVariant()}
-        >
-          Сохранить текущий расчёт
-        </Button>
-        {stale && (
-          <p className={s.hint}>
-            Конфигурация изменена — сохранять нечего, пока результат не пересчитан.
-          </p>
-        )}
-      </div>
-
       {!variants.length ? (
         <div className={s.empty}>
           <IconColumns2 size={26} />
           <p>
-            Вариант — это конфигурация вместе с её расчётом. Сохраните текущий, поменяйте
-            очередь запуска или фазирование плоскости, пересчитайте и сохраните второй.
+            Сохранённых вариантов пока нет. Сохраните текущий результат на вкладке
+            «Показатели», затем измените конфигурацию и пересчитайте её.
           </p>
           <p className={s.hint}>
-            Сравнение открывается от двух вариантов: доступность, перерывы, маршруты и дифф
-            параметров на одной сетке времени.
+            Для сравнения нужны минимум два варианта.
           </p>
+          <Button
+            size="xs"
+            variant="default"
+            loading={busy}
+            leftSection={<IconUpload size={14} />}
+            onClick={() => fileInput.current?.click()}
+          >
+            Добавить вариант из файла
+          </Button>
         </div>
       ) : (
         <>
           <ul className={s.list}>
             {views.map((v) => {
-              const chips = base ? diffChips(base, v) : []
+              const chips = base ? diffChips(base, v, 2) : []
               const isBase = v.id === base?.id
+              const delta = base ? v.agg.worstAvailability - base.agg.worstAvailability : 0
               return (
                 <li
                   key={v.id}
                   className={s.card}
-                  style={{ ['--tint' as string]: variantColor(v.seq) }}
                   data-checked={selected.includes(v.id) || undefined}
                 >
                   <Checkbox
@@ -142,10 +142,23 @@ export function VariantsPanel() {
                           )}
                         </>
                       )}
-                      <span className={s.score}>{v.agg.worstAvailability.toFixed(2)} %</span>
+                      <span className={s.score}>
+                        {v.agg.worstAvailability.toFixed(2)}%
+                      </span>
                     </div>
 
-                    <p className={s.sub}>{describeScenario(v.scenario)}</p>
+                    <p className={s.sub}>
+                      минимум · {v.agg.worstClient}
+                      {!isBase && (
+                        <span className={delta >= 0 ? s.deltaUp : s.deltaDown}>
+                          {delta > 0 ? '+' : delta < 0 ? '−' : ''}{Math.abs(delta).toFixed(2)} п.п.
+                        </span>
+                      )}
+                    </p>
+
+                    <span className={s.meter}>
+                      <span style={{ width: `${v.agg.worstAvailability}%` }} />
+                    </span>
 
                     {chips.length > 0 && (
                       <div className={s.chips}>
@@ -157,13 +170,22 @@ export function VariantsPanel() {
                       </div>
                     )}
 
-                    <p className={s.sub}>
-                      худший {v.agg.worstClient} · макс. перерыв {fmtDurShort(v.agg.maxGapS)} ·{' '}
-                      {v.agg.avgHops.toFixed(2)} перехода
-                    </p>
+                    <p className={s.sub}>макс. перерыв {fmtDurShort(v.agg.maxGapS)} · аппаратов {v.agg.activeSats}</p>
                   </div>
 
                   <div className={s.actions}>
+                    <Tooltip label="выгрузить результат по формату кейса" withArrow openDelay={400}>
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="sky"
+                        leftSection={<IconDownload size={13} />}
+                        className={s.exportButton}
+                        onClick={() => downloadVariantResult(v)}
+                      >
+                        JSON
+                      </Button>
+                    </Tooltip>
                     <Tooltip label="сделать базой сравнения" withArrow openDelay={400}>
                       <ActionIcon
                         variant={isBase ? 'light' : 'subtle'}
@@ -228,14 +250,34 @@ export function VariantsPanel() {
                   ? 'Отметьте два варианта'
                   : `Сравнить (${selected.length})`}
             </Button>
+            <Button
+              fullWidth
+              size="xs"
+              variant="default"
+              loading={busy}
+              className={s.loadButton}
+              leftSection={<IconUpload size={14} />}
+              onClick={() => fileInput.current?.click()}
+            >
+              Добавить вариант из файла
+            </Button>
             <p className={s.hint}>
-              {variants.length < 2
-                ? 'Поменяйте очередь запуска, фазирование или дальность ISL, пересчитайте и сохраните второй вариант.'
-                : 'База — то, с чем считаются дельты. Отмеченные галочкой участвуют в сравнении. Горячая клавиша сравнения — C.'}
+              Принимается и сценарий кейса, и выгруженный результат
+              (cosmo-A-result-1.0): он развернётся до сценария, стратегия
+              маршрутизации восстановится.
             </p>
           </div>
         </>
       )}
+
+      {/* один скрытый input на оба состояния панели */}
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={onPick}
+      />
     </div>
   )
 }

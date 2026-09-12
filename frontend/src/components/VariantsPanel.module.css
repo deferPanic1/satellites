@@ -4,10 +4,6 @@
   height: 100%;
   min-height: 0;
 }
-.top {
-  padding: 0.9rem 0.9rem 0.6rem;
-  flex: none;
-}
 /* список не растягивается на всю высоту: при одном варианте кнопка сравнения
    не должна уезжать в подвал через полэкрана пустоты. Когда карточек много,
    flex-shrink отдаёт списку остаток и он начинает скроллиться. */
@@ -17,7 +13,7 @@
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 0 0.9rem;
+  padding: 0.9rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -30,17 +26,14 @@
   gap: 0.15rem 0.5rem;
   padding: 0.5rem 0.55rem 0.35rem;
   border: 1px solid rgba(148, 163, 184, 0.16);
-  /* цвет серии закреплён за номером варианта: он же на графиках сравнения */
-  border-left: 4px solid var(--tint);
+  border-left: 4px solid #38bdf8;
   border-radius: 8px;
   background: rgba(5, 7, 13, 0.5);
 }
 .card[data-checked] {
   background: rgba(56, 189, 248, 0.06);
   border-color: rgba(56, 189, 248, 0.3);
-  /* метку серии возвращаем после общего border-color: по ней вариант
-     узнаётся на графиках сравнения */
-  border-left-color: var(--tint);
+  border-left-color: #38bdf8;
 }
 .check {
   grid-area: check;
@@ -75,10 +68,33 @@
   white-space: nowrap;
 }
 .sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
   margin: 0.15rem 0 0;
   font-size: 0.68rem;
   color: #64748b;
   line-height: 1.4;
+}
+.deltaUp {
+  color: #4ade80;
+}
+.deltaDown {
+  color: #f87171;
+}
+.meter {
+  position: relative;
+  display: block;
+  height: 4px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563a8, #38bdf8);
 }
 .chips {
   display: flex;
@@ -102,10 +118,16 @@
   gap: 0.1rem;
   margin-top: 0.1rem;
 }
+.exportButton {
+  margin-right: auto;
+}
 .footer {
   flex: none;
   padding: 0.6rem 0.9rem 0.9rem;
   border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+.loadButton {
+  margin-top: 0.45rem;
 }
 .hint {
   margin: 0.4rem 0 0;

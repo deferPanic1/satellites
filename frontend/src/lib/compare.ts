@@ -25,7 +25,6 @@ export interface ClientView {
   avgHops: number
   maxHops: number | null
   avgKm: number | null
-  targetMet: boolean
   outageByReason: Record<string, number>
   hopHistogram: Record<string, number>
   routes: string[][]
@@ -36,7 +35,6 @@ export interface Agg {
   worstAvailability: number
   worstClient: string
   avgAvailability: number
-  targetsMet: number
   clientCount: number
   totalOutageS: number
   maxGapS: number
@@ -55,6 +53,7 @@ export interface VariantView {
   seq: number
   color: string
   createdAt: number
+  note?: string
   scenario: Scenario
   result: SimulateResponse
   agg: Agg
@@ -73,8 +72,6 @@ export interface Comparison {
   variants: VariantView[]
   base: VariantView
   clients: string[]
-  /** порог доступности в процентах; null — в сценарии не задан */
-  targetPct: number | null
   best: VariantView
   /** лучший вариант по каждому пункту отдельно */
   bestByClient: Record<string, string>
@@ -107,7 +104,6 @@ export function viewOf(v: Variant): VariantView {
   let kmSum = 0
   let kmCount = 0
   let availSum = 0
-  let targetsMet = 0
 
   for (const c of clients) {
     const m = v.result.metrics[c]
@@ -126,7 +122,6 @@ export function viewOf(v: Variant): VariantView {
       avgHops: m.hops?.avg ?? 0,
       maxHops: m.hops?.max ?? null,
       avgKm: m.avg_path_km,
-      targetMet: m.target_met,
       outageByReason: perReason,
       hopHistogram: m.hops?.histogram ?? {},
       routes: v.result.routes[c] ?? [],
@@ -144,7 +139,6 @@ export function viewOf(v: Variant): VariantView {
       kmSum += m.avg_path_km
       kmCount++
     }
-    if (m.target_met) targetsMet++
   }
 
   return {
@@ -153,6 +147,7 @@ export function viewOf(v: Variant): VariantView {
     seq: v.seq ?? 1,
     color: variantColor(v.seq ?? 1),
     createdAt: v.createdAt,
+    note: v.note,
     scenario: v.scenario,
     result: v.result,
     byClient,
@@ -160,7 +155,6 @@ export function viewOf(v: Variant): VariantView {
       worstAvailability: v.result.summary.worst_availability_pct,
       worstClient: v.result.summary.worst_client,
       avgAvailability: clients.length ? availSum / clients.length : 0,
-      targetsMet,
       clientCount: clients.length,
       totalOutageS,
       maxGapS,
@@ -197,9 +191,6 @@ export function diffParams(views: VariantView[]): ParamRow[] {
   const rows: ParamRow[] = [
     paramRow('routing', 'Расчёт', 'Стратегия маршрутизации', views, (v) =>
       ROUTING_TEXT[v.result.meta.routing ?? 'min_hops'] ?? '—',
-    ),
-    paramRow('target', 'Расчёт', 'Целевая доступность', views, (v) =>
-      `${(v.scenario.environment.target_availability * 100).toFixed(0)} %`,
     ),
     paramRow('stage', 'Развёртывание', 'Очередь запуска', views, (v) =>
       String(v.scenario.design.launch_stage),
@@ -283,16 +274,11 @@ function buildVerdict(
   views: VariantView[],
   base: VariantView,
   best: VariantView,
-  clients: string[],
-  targetPct: number | null,
 ): string[] {
   const out: string[] = []
   const n = views.length
 
-  const head =
-    targetPct === null
-      ? `«${best.label}» — лучший из ${n}: самый слабый пункт ${best.agg.worstClient} держит ${best.agg.worstAvailability.toFixed(2)} % времени.`
-      : `«${best.label}» — лучший из ${n}: порог ${targetPct.toFixed(0)} % выполняют ${best.agg.targetsMet} из ${best.agg.clientCount} пунктов, самый слабый (${best.agg.worstClient}) — ${best.agg.worstAvailability.toFixed(2)} %.`
+  const head = `«${best.label}» — лучший из ${n}: самый слабый пункт ${best.agg.worstClient} держит ${best.agg.worstAvailability.toFixed(2)}% времени.`
   out.push(head)
 
   if (best.id !== base.id) {
@@ -313,28 +299,10 @@ function buildVerdict(
     )
   }
 
-  // Пункт, который не вытягивает ни один вариант — это и есть узкое место проекта.
-  if (targetPct !== null) {
-    const hopeless = clients.filter((c) =>
-      views.every((v) => (v.byClient[c]?.availability ?? 0) < targetPct),
-    )
-    if (hopeless.length) {
-      const c = hopeless[0]
-      const bestForC = views.reduce((a, v) =>
-        (v.byClient[c]?.availability ?? 0) > (a.byClient[c]?.availability ?? 0) ? v : a,
-      )
-      out.push(
-        `Порог не достигается ни в одном варианте для ${hopeless.join(', ')}. ` +
-          `Максимум для ${c} — ${(bestForC.byClient[c]?.availability ?? 0).toFixed(2)} % у «${bestForC.label}»: ` +
-          `оставшийся дефицит закрывается не фазированием, а составом группировки или вторым шлюзом.`,
-      )
-    }
-  }
-
   const dom = dominantReason(best.agg.outageByReason)
   if (dom) {
     out.push(
-      `Основная причина перерывов — ${REASON_LABEL[dom.key].toLowerCase()}: ${dom.share.toFixed(0)} % всего времени без связи в варианте «${best.label}».`,
+      `Основная причина перерывов — ${REASON_LABEL[dom.key].toLowerCase()}: ${dom.share.toFixed(0)}% всего времени без связи в варианте «${best.label}».`,
     )
   }
 
@@ -355,8 +323,6 @@ export function buildComparison(
   for (const v of views) for (const c of Object.keys(v.byClient)) if (!clients.includes(c)) clients.push(c)
   clients.sort()
 
-  const t = base.result.meta.target_availability
-  const targetPct = t && t > 0 ? t * 100 : null
   const best = pickBest(views)
 
   const bestByClient: Record<string, string> = {}
@@ -370,115 +336,11 @@ export function buildComparison(
     variants: views,
     base,
     clients,
-    targetPct,
     best,
     bestByClient,
     params: diffParams(views),
-    verdict: buildVerdict(views, base, best, clients, targetPct),
+    verdict: buildVerdict(views, base, best),
     stepS: base.result.meta.step_s,
     nSteps: base.result.meta.n_steps,
   }
-}
-
-// ---------- выгрузка ----------
-
-/** Плоская таблица «вариант × пункт»: то, что уносят в отчёт и презентацию. */
-export function comparisonCsv(cmp: Comparison): string {
-  const head = [
-    'variant',
-    'scenario_id',
-    'routing',
-    'launch_stage',
-    'active_satellites',
-    'isl_range_km',
-    'min_elevation_deg',
-    'client',
-    'availability_pct',
-    'visibility_pct',
-    'target_met',
-    'max_gap_s',
-    'total_outage_s',
-    'gap_count',
-    'avg_hops',
-    'max_hops',
-    'avg_path_km',
-    ...REASONS.map((r) => `outage_${r}_s`),
-  ]
-  const lines = [head.join(',')]
-
-  for (const v of cmp.variants) {
-    for (const c of cmp.clients) {
-      const m = v.byClient[c]
-      if (!m) continue
-      lines.push(
-        [
-          `"${v.label.replace(/"/g, '""')}"`,
-          v.result.meta.scenario_id,
-          v.result.meta.routing ?? '',
-          v.scenario.design.launch_stage,
-          v.agg.activeSats,
-          v.scenario.environment.isl_range_km,
-          v.scenario.environment.min_elevation_deg,
-          c,
-          m.availability.toFixed(2),
-          m.visibility.toFixed(2),
-          m.targetMet ? 1 : 0,
-          m.maxGapS,
-          m.totalOutageS,
-          m.gapCount,
-          m.avgHops.toFixed(2),
-          m.maxHops ?? '',
-          m.avgKm === null ? '' : m.avgKm.toFixed(1),
-          ...REASONS.map((r) => m.outageByReason[r] ?? 0),
-        ].join(','),
-      )
-    }
-  }
-  return lines.join('\n')
-}
-
-/** Полная выгрузка сравнения: параметры, показатели и вердикт одним файлом. */
-export function comparisonJson(cmp: Comparison): string {
-  return JSON.stringify(
-    {
-      schema_version: 'cosmo-A-comparison-1.0',
-      exported_at: new Date().toISOString(),
-      base: cmp.base.label,
-      best: cmp.best.label,
-      target_availability_pct: cmp.targetPct,
-      grid: { n_steps: cmp.nSteps, step_s: cmp.stepS },
-      verdict: cmp.verdict,
-      parameters: cmp.params.map((p) => ({
-        group: p.group,
-        label: p.label,
-        differs: p.differs,
-        values: Object.fromEntries(cmp.variants.map((v, i) => [v.label, p.values[i]])),
-      })),
-      variants: cmp.variants.map((v) => ({
-        label: v.label,
-        scenario_id: v.result.meta.scenario_id,
-        routing: v.result.meta.routing,
-        summary: v.agg,
-        // routes/reasons — это 720 записей на пункт; в сравнении они не нужны,
-        // выгрузка самого расчёта делается отдельно
-        clients: Object.fromEntries(
-          Object.entries(v.byClient).map(([c, m]) => {
-            const { routes: _routes, reasons: _reasons, ...rest } = m
-            return [c, rest]
-          }),
-        ),
-      })),
-    },
-    null,
-    2,
-  )
-}
-
-export function download(name: string, body: string, mime: string) {
-  const url = URL.createObjectURL(new Blob([body], { type: `${mime};charset=utf-8` }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  URL.revokeObjectURL(url)
 }

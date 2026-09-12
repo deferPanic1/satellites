@@ -99,6 +99,7 @@ export class ConstellationScene {
   private buffer = new Float64Array(0)
   private cartesians: Cesium.Cartesian3[] = []
   private satClickCb: ((id: string | null) => void) | null = null
+  private groundClickCb: ((id: string) => void) | null = null
 
   constructor(container: HTMLElement) {
     this.viewer = new Cesium.Viewer(container, {
@@ -121,6 +122,9 @@ export class ConstellationScene {
       infoBox: false,
       selectionIndicator: false,
       shouldAnimate: false,
+      // По умолчанию Cesium игнорирует devicePixelRatio ради скорости.
+      // На Retina это делает и карту, и маркеры заметно размытыми.
+      useBrowserRecommendedResolution: false,
     })
 
     const scene = this.viewer.scene
@@ -139,9 +143,20 @@ export class ConstellationScene {
 
     this.handler = new Cesium.ScreenSpaceEventHandler(scene.canvas)
     this.handler.setInputAction((e: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
-      const picked = scene.pick(e.position)
-      const id = picked?.id
-      this.satClickCb?.(typeof id === 'string' && this.satIndex.has(id) ? id : null)
+      const raw: unknown = scene.pick(e.position)?.id
+
+      // Аппараты живут в PointPrimitiveCollection — там id это наша строка.
+      if (typeof raw === 'string' && this.satIndex.has(raw)) {
+        this.satClickCb?.(raw)
+        return
+      }
+      // Наземные пункты — Entity: строка лежит на самом объекте.
+      const entityId = raw instanceof Cesium.Entity ? raw.id : null
+      if (entityId && this.groundCartesian.has(entityId)) {
+        this.groundClickCb?.(entityId)
+        return
+      }
+      this.satClickCb?.(null)
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK)
 
     // Viewer по умолчанию ставит на двойной клик слежение за Entity и
@@ -157,6 +172,17 @@ export class ConstellationScene {
 
   onSatelliteClick(cb: (id: string | null) => void) {
     this.satClickCb = cb
+  }
+
+  /**
+   * Клик по наземному пункту.
+   *
+   * Выбор обслуживаемого пункта — это выбор объекта на карте, а не значение
+   * в списке: раньше рядом жил отдельный выпадающий список в шапке, который
+   * дублировал карточки пунктов в панели показателей.
+   */
+  onGroundClick(cb: (id: string) => void) {
+    this.groundClickCb = cb
   }
 
   /** Пересобрать сцену под новый сценарий. Вызывать при смене конфигурации. */

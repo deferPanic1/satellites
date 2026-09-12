@@ -30,18 +30,21 @@ export function availabilityRuns(
 
   const runs: Run[] = []
   const okAt = (i: number) => routes[i].length > 0
+  const reasonAt = (i: number) => reasons?.[i] ?? null
   let from = 0
 
   for (let i = 1; i <= routes.length; i++) {
-    const boundary = i === routes.length || okAt(i) !== okAt(from)
+    const boundary =
+      i === routes.length ||
+      okAt(i) !== okAt(from) ||
+      (!okAt(from) && reasonAt(i) !== reasonAt(from))
     if (!boundary) continue
     const ok = okAt(from)
     runs.push({
       from,
       to: i,
       ok,
-      // причина одна на весь участок: внутри перерыва она не меняется
-      reason: ok ? null : (reasons?.[from] ?? null),
+      reason: ok ? null : reasonAt(from),
     })
     from = i
   }

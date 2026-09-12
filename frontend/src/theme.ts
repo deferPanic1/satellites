@@ -43,7 +43,13 @@ export const theme = createTheme({
     Button: { defaultProps: { size: 'xs' } },
     Select: { defaultProps: { size: 'xs', comboboxProps: { withinPortal: true } } },
     NumberInput: { defaultProps: { size: 'xs' } },
-    SegmentedControl: { defaultProps: { size: 'xs' } },
+    /**
+     * Вертикальные линейки между сегментами отключены: плашка активного
+     * пункта наезжала на них, соседняя линейка уходила под неё, и ряд
+     * выглядел рваным — третий сегмент казался не отделённым от второго.
+     * Выделение держится на плашке, вид — в styles/main.css.
+     */
+    SegmentedControl: { defaultProps: { size: 'xs', withItemsBorders: false } },
     Badge: { defaultProps: { size: 'sm', tt: 'none' } },
   },
 })

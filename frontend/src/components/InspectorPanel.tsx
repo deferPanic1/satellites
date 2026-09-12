@@ -1,12 +1,24 @@
 import { useMemo } from 'react'
-import { ActionIcon, Badge } from '@mantine/core'
-import { IconX } from '@tabler/icons-react'
+import { ActionIcon, Badge, Tooltip } from '@mantine/core'
+import {
+  IconChevronRight,
+  IconClock,
+  IconInfoCircle,
+  IconRoute,
+  IconRulerMeasure,
+  IconX,
+} from '@tabler/icons-react'
 import { useProject } from '../stores/project'
 import { selectStepIndex, usePlayback } from '../stores/playback'
 import { buildModel, elevationDeg, groundPosition, positionOf } from '../lib/orbital'
 import s from './InspectorPanel.module.css'
 
-export function InspectorPanel() {
+interface Props {
+  /** вернуться к списку наземных пунктов — там и выбирается текущий */
+  onPickClient?: () => void
+}
+
+export function InspectorPanel({ onPickClient }: Props) {
   const scenario = useProject((x) => x.scenario)
   const result = useProject((x) => x.result)
   const selectedSat = useProject((x) => x.selectedSat)
@@ -121,7 +133,13 @@ export function InspectorPanel() {
     <div className={s.panel}>
       {routeLegs.length > 0 && (
         <section>
-          <h3>Текущий маршрут · {selectedClient}</h3>
+          <div className={s.head}>
+            <h3>Текущий маршрут</h3>
+            <button type="button" className={s.pick} onClick={onPickClient}>
+              {selectedClient}
+              <IconChevronRight size={12} />
+            </button>
+          </div>
           <ol className={s.legs}>
             {routeLegs.map((l, i) => (
               <li key={i}>
@@ -140,12 +158,33 @@ export function InspectorPanel() {
               </li>
             ))}
           </ol>
-          <p className={s.hint}>
-            Всего {routeLegs.length} переходов, {totalKm.toFixed(0)} км, задержка света ≈{' '}
-            {(totalKm / 299.792).toFixed(1)} мс в одну сторону. Дистанции пересчитаны в браузере
-            для непрерывного времени и могут на доли процента отличаться от табличных значений с
-            сервера.
-          </p>
+          <div className={s.routeSummary}>
+            <div>
+              <IconRoute size={15} />
+              <span>Переходы</span>
+              <strong>{routeLegs.length}</strong>
+            </div>
+            <div>
+              <IconRulerMeasure size={15} />
+              <span>Длина</span>
+              <strong>{totalKm.toFixed(0)}<small>км</small></strong>
+            </div>
+            <div>
+              <IconClock size={15} />
+              <span>Задержка</span>
+              <strong>≈{(totalKm / 299.792).toFixed(1)}<small>мс</small></strong>
+            </div>
+          </div>
+          <Tooltip
+            label="Дистанции пересчитываются для текущего момента и могут немного отличаться от табличных значений сервера."
+            multiline
+            w={280}
+            withArrow
+          >
+            <span className={s.routeNote}>
+              <IconInfoCircle size={12} /> оценка в одну сторону
+            </span>
+          </Tooltip>
         </section>
       )}
 
@@ -212,7 +251,8 @@ export function InspectorPanel() {
 
       {!info && routeLegs.length === 0 && (
         <p className={`${s.hint} ${s.center}`}>
-          Кликните по спутнику на глобусе, чтобы увидеть его состояние.
+          Кликните по спутнику на глобусе, чтобы увидеть его состояние, а по наземному пункту —
+          чтобы выбрать его текущим.
         </p>
       )}
     </div>

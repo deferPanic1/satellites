@@ -65,6 +65,7 @@ export function AvailabilityStrip({
             onMouseEnter={() => setHover(r)}
             onClick={onSeek ? () => onSeek(r.from * stepS) : undefined}
             data-clickable={onSeek ? '' : undefined}
+            data-reason={!r.ok ? (r.reason ?? 'unknown') : undefined}
           />
         ))}
         {cursorStep !== null && cursorStep >= 0 && (

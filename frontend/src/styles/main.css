@@ -58,3 +58,45 @@ body {
 body {
   --mantine-color-body: var(--bg);
 }
+
+/* ——— сегментные переключатели ———
+   Оформление одно на всё приложение: этап развёртывания, стратегия
+   маршрутизации, «значения / дельты» в сравнении.
+
+   Вертикальные линейки между пунктами отключены в теме: плашка активного
+   пункта наезжала на них, соседняя линейка уходила под неё, и ряд выглядел
+   рваным. Само выделение — прямоугольная заливка без скругления и без рамки
+   (ориентир — активный пункт навигации в Zed: полупрозрачная синяя заливка,
+   светло-синий текст, border-radius 0), поэтому активный сегмент читается
+   как часть полосы, а не как отдельная пилюля поверх неё. */
+.mantine-SegmentedControl-root {
+  background: rgba(5, 7, 13, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  /* заливка активного пункта идёт от края до края, без внутреннего отступа */
+  padding: 0;
+  overflow: hidden;
+}
+.mantine-SegmentedControl-indicator {
+  background: rgba(11, 126, 221, 0.28);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.mantine-SegmentedControl-label {
+  color: var(--muted);
+  border-radius: 0;
+  padding-block: 0.32rem;
+  font-weight: 500;
+  transition: color 0.12s;
+}
+.mantine-SegmentedControl-label:hover {
+  color: #cbd5e1;
+}
+.mantine-SegmentedControl-label[data-active],
+.mantine-SegmentedControl-label[data-active]:hover {
+  color: #9acaf1;
+}
+.mantine-SegmentedControl-label[data-disabled] {
+  color: #475569;
+}

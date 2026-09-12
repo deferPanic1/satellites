@@ -55,6 +55,13 @@ export function GlobeView() {
     const scene = new ConstellationScene(el)
     sceneRef.current = scene
     scene.onSatelliteClick((id) => useProject.getState().setSelectedSat(id))
+    scene.onGroundClick((id) => {
+      const st = useProject.getState()
+      // шлюз выбирать нечего: маршрут строится ДО него, а не от него
+      if (st.scenario?.ground_sites.find((g) => g.id === id)?.role === 'client') {
+        st.setSelectedClient(id)
+      }
+    })
 
     const { scenario: sc, result } = useProject.getState()
     if (sc) scene.setScenario(sc, result?.constants)
