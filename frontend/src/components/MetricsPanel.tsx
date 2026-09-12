@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ActionIcon, Badge, Button, Table } from '@mantine/core'
+import { ActionIcon, Button, Table } from '@mantine/core'
 import { IconBookmark, IconHistory, IconTrash } from '@tabler/icons-react'
 import { describeScenario, REASON_LABEL, useProject } from '../stores/project'
 import { usePlayback } from '../stores/playback'
@@ -9,7 +9,6 @@ interface Row {
   client: string
   visibility: number
   availability: number
-  targetMet: boolean
   maxGap: number
   gaps: number
   avgHops: number
@@ -41,7 +40,6 @@ export function MetricsPanel() {
         client,
         visibility: m.visibility_pct,
         availability: m.availability_pct,
-        targetMet: m.target_met,
         maxGap: m.max_gap_s,
         gaps: m.gaps?.length ?? 0,
         avgHops: m.hops?.avg ?? 0,
@@ -58,6 +56,20 @@ export function MetricsPanel() {
     return { base, others: variants.slice(1), clients: Object.keys(base.result.metrics) }
   }, [variants])
 
+  /**
+   * Лучший вариант максимизирует результат самого слабого клиентского пункта.
+   * Так высокий процент у двух клиентов не скрывает провал у третьего.
+   */
+  const bestVariantId = useMemo(() => {
+    if (variants.length < 2) return null
+    return variants.reduce((best, current) =>
+      current.result.summary.worst_availability_pct >
+      best.result.summary.worst_availability_pct
+        ? current
+        : best,
+    ).id
+  }, [variants])
+
   const gaps = (selectedClient && result?.metrics[selectedClient]?.gaps) || []
 
   return (
@@ -66,55 +78,48 @@ export function MetricsPanel() {
         <section data-stale={stale || undefined} className={s.results}>
           <div className={s.head}>
             <h3>Показатели по пунктам</h3>
-            <Badge
-              color={stale ? 'gray' : result.summary.all_targets_met ? 'green' : 'red'}
-              variant="light"
-            >
-              {stale
-                ? 'устарело'
-                : result.summary.all_targets_met
-                  ? 'Цель достигнута'
-                  : 'Цель не достигнута'}
-            </Badge>
+            {stale && <span className={s.staleLabel}>Результат требует пересчёта</span>}
           </div>
 
-          <Table highlightOnHover fz="xs" verticalSpacing={4} horizontalSpacing={6}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Пункт</Table.Th>
-                <Table.Th>Видимость</Table.Th>
-                <Table.Th>Связь</Table.Th>
-                <Table.Th>Макс. перерыв</Table.Th>
-                <Table.Th>Перерывов</Table.Th>
-                <Table.Th>Хопов</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((r) => (
-                <Table.Tr
-                  key={r.client}
-                  className={s.row}
-                  data-selected={r.client === selectedClient || undefined}
-                  onClick={() => setSelectedClient(r.client)}
-                >
-                  <Table.Td className={s.mono}>{r.client}</Table.Td>
-                  <Table.Td>{r.visibility.toFixed(2)} %</Table.Td>
-                  <Table.Td className={r.targetMet ? s.ok : s.bad}>
-                    {r.availability.toFixed(2)} %
-                    {r.delta !== null && Math.abs(r.delta) >= 0.005 && (
-                      <span className={r.delta >= 0 ? s.deltaUp : s.deltaDown}>
-                        {r.delta > 0 ? '+' : ''}
-                        {r.delta.toFixed(2)}
-                      </span>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{fmtGap(r.maxGap)}</Table.Td>
-                  <Table.Td>{r.gaps}</Table.Td>
-                  <Table.Td>{r.avgHops.toFixed(2)}</Table.Td>
+          <div className={s.tableScroll}>
+            <Table highlightOnHover fz="xs" verticalSpacing={4} horizontalSpacing={6}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Пункт</Table.Th>
+                  <Table.Th>Видимость</Table.Th>
+                  <Table.Th>Связь</Table.Th>
+                  <Table.Th>Макс. перерыв</Table.Th>
+                  <Table.Th>Перерывов</Table.Th>
+                  <Table.Th>Хопов</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.map((r) => (
+                  <Table.Tr
+                    key={r.client}
+                    className={s.row}
+                    data-selected={r.client === selectedClient || undefined}
+                    onClick={() => setSelectedClient(r.client)}
+                  >
+                    <Table.Td className={s.mono}>{r.client}</Table.Td>
+                    <Table.Td>{r.visibility.toFixed(2)} %</Table.Td>
+                    <Table.Td>
+                      {r.availability.toFixed(2)} %
+                      {r.delta !== null && Math.abs(r.delta) >= 0.005 && (
+                        <span className={r.delta >= 0 ? s.deltaUp : s.deltaDown}>
+                          {r.delta > 0 ? '+' : ''}
+                          {r.delta.toFixed(2)}
+                        </span>
+                      )}
+                    </Table.Td>
+                    <Table.Td>{fmtGap(r.maxGap)}</Table.Td>
+                    <Table.Td>{r.gaps}</Table.Td>
+                    <Table.Td>{r.avgHops.toFixed(2)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
 
           {previousResult && !stale && (
             <p className={s.hint}>Мелким шрифтом — изменение к предыдущему расчёту.</p>
@@ -152,7 +157,8 @@ export function MetricsPanel() {
           <Button
             variant="outline"
             leftSection={<IconBookmark size={14} />}
-            disabled={!result}
+            disabled={!result || stale}
+            title={stale ? 'Сначала пересчитайте изменения или отмените их' : undefined}
             onClick={() => saveVariant()}
           >
             Сохранить текущий
@@ -169,7 +175,8 @@ export function MetricsPanel() {
                   <strong>{v.label}</strong>
                   <span className={s.hint}>{describeScenario(v.scenario)}</span>
                 </div>
-                <span className={v.result.summary.all_targets_met ? s.ok : s.bad}>
+                <span className={s.variantScore}>
+                  {bestVariantId === v.id && <small>лучший</small>}
                   {v.result.summary.worst_availability_pct.toFixed(2)} %
                 </span>
                 <ActionIcon variant="subtle" color="gray" radius="xl" onClick={() => restoreVariant(v.id)}>

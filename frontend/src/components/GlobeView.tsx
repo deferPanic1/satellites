@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  IconChevronDown,
+  IconFocusCentered,
+  IconLayersIntersect,
+  IconWorld,
+} from '@tabler/icons-react'
 import { ConstellationScene, type SceneOptions } from '../lib/cesiumScene'
 import { useProject } from '../stores/project'
 import { playbackTime } from '../stores/playback'
 import s from './GlobeView.module.css'
 
 const LAYERS: { key: keyof SceneOptions; label: string }[] = [
+  { key: 'showRoute', label: 'маршрут' },
   { key: 'showIsl', label: 'межспутниковые' },
   { key: 'showGroundLinks', label: 'наземные' },
   { key: 'showOrbits', label: 'орбиты' },
@@ -29,6 +36,7 @@ export function GlobeView() {
   const stale = useProject((x) => x.stale)
 
   const [options, setOptions] = useState<SceneOptions>({
+    showRoute: true,
     showLabels: false,
     showOrbits: true,
     showIsl: true,
@@ -103,10 +111,6 @@ export function GlobeView() {
     }
   }, [scenario])
 
-  useEffect(() => {
-    if (selectedClient) sceneRef.current?.flyToGround(selectedClient)
-  }, [selectedClient])
-
   return (
     <div className={s.wrap}>
       <div ref={container} className={s.globe} />
@@ -117,18 +121,25 @@ export function GlobeView() {
         </div>
       )}
 
-      <div className={s.toggles}>
-        {LAYERS.map((l) => (
-          <label key={l.key}>
-            <input
-              type="checkbox"
-              checked={options[l.key]}
-              onChange={(e) => setOptions((o) => ({ ...o, [l.key]: e.target.checked }))}
-            />{' '}
-            {l.label}
-          </label>
-        ))}
-      </div>
+      <details className={s.layers}>
+        <summary>
+          <IconLayersIntersect size={15} />
+          Слои
+          <IconChevronDown className={s.chevron} size={14} />
+        </summary>
+        <div className={s.layerMenu}>
+          {LAYERS.map((l) => (
+            <label key={l.key}>
+              <input
+                type="checkbox"
+                checked={options[l.key]}
+                onChange={(e) => setOptions((o) => ({ ...o, [l.key]: e.target.checked }))}
+              />
+              {l.label}
+            </label>
+          ))}
+        </div>
+      </details>
 
       <div className={s.legend}>
         {LEGEND.map((x) => (
@@ -136,6 +147,23 @@ export function GlobeView() {
             <i className={`${s.dot} ${x.cls}`} /> {x.label}
           </span>
         ))}
+      </div>
+      <div className={s.cameraControls}>
+        <button
+          type="button"
+          disabled={!selectedClient}
+          onClick={() => selectedClient && sceneRef.current?.flyToGround(selectedClient)}
+          title={selectedClient ? `Показать ${selectedClient} на карте` : 'Выберите наземный пункт'}
+        >
+          <IconFocusCentered size={14} />
+          <span className={s.cameraLabel}>
+            {selectedClient ? `Показать ${selectedClient}` : 'Показать пункт'}
+          </span>
+        </button>
+        <button type="button" onClick={() => sceneRef.current?.resetView()} title="Вернуть общий вид">
+          <IconWorld size={14} />
+          <span className={s.cameraLabel}>Общий вид</span>
+        </button>
       </div>
     </div>
   )

@@ -11,11 +11,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "doc" / "Расчетный модуль"))
+sys.path.insert(0, str(ROOT / "case" / "Расчетный модуль"))
 
 import geometry as G  # noqa: E402
 
-SCENARIO = ROOT / "doc" / "Данные" / "01_full_constellation.json"
+SCENARIO = ROOT / "case" / "Данные" / "01_full_constellation.json"
 SAMPLE_TIMES = [0, 120, 1800, 3600, 21600, 43200, 60000, 86280]
 
 scenario = G.load(str(SCENARIO))

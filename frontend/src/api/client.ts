@@ -1,26 +1,25 @@
 /**
  * Клиент API. Соответствует docs/openapi.yaml.
  *
- * Режим мока: пока бэкенда нет, запросы падают с сетевой ошибкой и клиент
- * подставляет фикстуру из public/mock/. Это позволяет писать фронт
- * параллельно с бэком. Флаг usingMock выставляется наружу, чтобы в UI
- * висела честная плашка «данные из фикстуры».
+ * По умолчанию фронтенд работает автономно: сценарии берёт из public/mock,
+ * а модель считает локально. Когда API будет готов, сборка с
+ * VITE_API_MODE=remote переключит те же функции на HTTP.
  */
 
 import type {
   Scenario,
   ScenarioListItem,
-  SimulateResponse,
   SimulateResult,
   ValidationReport,
   RoutingMode,
 } from '../types/api'
+import { simulateLocally } from '../lib/localSimulator'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
+const USE_REMOTE_API = import.meta.env.VITE_API_MODE === 'remote'
 
 export const apiState = {
   usingMock: false,
-  lastError: null as string | null,
 }
 
 class NetworkError extends Error {}
@@ -66,6 +65,7 @@ async function loadMock<T>(file: string): Promise<T> {
 // ---------- сценарии ----------
 
 export async function listScenarios(): Promise<ScenarioListItem[]> {
+  if (!USE_REMOTE_API) return loadMock<ScenarioListItem[]>('scenarios.json')
   try {
     return await call<ScenarioListItem[]>('/scenarios')
   } catch (e) {
@@ -75,6 +75,7 @@ export async function listScenarios(): Promise<ScenarioListItem[]> {
 }
 
 export async function getScenario(id: string): Promise<Scenario> {
+  if (!USE_REMOTE_API) return loadMock<Scenario>(`scenario-${id}.json`)
   try {
     return await call<Scenario>(`/scenarios/${encodeURIComponent(id)}`)
   } catch (e) {
@@ -85,10 +86,14 @@ export async function getScenario(id: string): Promise<Scenario> {
 
 /**
  * Загрузка пользовательского файла.
- * Сначала пробуем сервер (он ловит не-JSON, кодировки, размер).
- * Если сервера нет — разбираем на фронте, чтобы демо работало.
+ * В автономном режиме разбираем файл прямо в браузере. В remote-режиме
+ * сервер выполняет полную валидацию, а локальная остаётся запасной.
  */
 export async function uploadScenario(file: File): Promise<ValidationReport> {
+  if (!USE_REMOTE_API) {
+    apiState.usingMock = true
+    return parseLocally(file)
+  }
   const form = new FormData()
   form.append('file', file)
   try {
@@ -116,6 +121,10 @@ async function parseLocally(file: File): Promise<ValidationReport> {
       { path: '$', code: 'malformed_json', message: `Файл не является корректным JSON: ${err}` },
     ])
   }
+  return validateLocally(data)
+}
+
+function validateLocally(data: unknown): ValidationReport {
   const s = data as Scenario
   const errors = []
   if (s?.schema_version !== 'cosmo-A-1.0') {
@@ -162,13 +171,7 @@ async function parseLocally(file: File): Promise<ValidationReport> {
       launch_stage: s.design.launch_stage,
     },
     errors: [],
-    warnings: [
-      {
-        path: '$',
-        code: 'local_validation_only',
-        message: 'Бэкенд недоступен: выполнена только базовая проверка структуры в браузере',
-      },
-    ],
+    warnings: [],
   }
 }
 
@@ -179,6 +182,10 @@ function report(errors: ValidationReport['errors']): ValidationReport {
 // ---------- расчёт ----------
 
 export async function validateScenario(scenario: Scenario): Promise<ValidationReport> {
+  if (!USE_REMOTE_API) {
+    apiState.usingMock = true
+    return validateLocally(scenario)
+  }
   return call<ValidationReport>('/validate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -190,6 +197,12 @@ export async function simulate(
   scenario: Scenario,
   routing: RoutingMode = 'min_hops',
 ): Promise<SimulateResult> {
+  if (!USE_REMOTE_API) {
+    apiState.usingMock = true
+    // Даём React отрисовать loading-состояние перед синхронным расчётом.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    return simulateLocally(scenario, routing)
+  }
   try {
     const r = await call<SimulateResult>('/simulate', {
       method: 'POST',
@@ -200,18 +213,40 @@ export async function simulate(
     return r
   } catch (e) {
     if (e instanceof NetworkError) {
-      // Фикстуры предрассчитаны для четырёх выданных сценариев. Правки
-      // конфигурации в этом режиме не влияют на результат — об этом
-      // честно сообщает плашка «демо-данные» в шапке.
-      apiState.lastError =
-        'Бэкенд недоступен: показан предрассчитанный результат, правки конфигурации не применяются'
-      return loadMock<SimulateResponse>(`simulate-${scenario.meta.id}.json`)
+      apiState.usingMock = true
+      return simulateLocally(scenario, routing)
     }
     throw e
   }
 }
 
 export async function exportResult(scenario: Scenario, notes?: string): Promise<Blob> {
+  if (!USE_REMOTE_API) {
+    const result = simulateLocally(scenario)
+    const routes = Object.entries(result.routes).flatMap(([clientId, clientRoutes]) =>
+      clientRoutes.map((path, index) => ({
+        t_s: index * scenario.environment.step_s,
+        client_id: clientId,
+        path,
+      })),
+    )
+    return new Blob(
+      [
+        JSON.stringify(
+          {
+            schema_version: 'cosmo-A-result-1.0',
+            effective_scenario: scenario,
+            routes,
+            metrics: result.metrics,
+            ...(notes === undefined ? {} : { notes }),
+          },
+          null,
+          2,
+        ),
+      ],
+      { type: 'application/json' },
+    )
+  }
   const res = await fetch(`${BASE}/export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

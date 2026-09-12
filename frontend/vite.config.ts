@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // бэкенд FastAPI на 8000; пока его нет — клиент падает на фикстуры
+      // Используется только в сборке с VITE_API_MODE=remote.
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,

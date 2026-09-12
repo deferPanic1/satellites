@@ -274,8 +274,6 @@ export function ConfigPanel() {
           <dd>
             {scenario.environment.horizon_s / 3600} ч / {scenario.environment.step_s} с
           </dd>
-          <dt>Целевая доступность</dt>
-          <dd>{(scenario.environment.target_availability * 100).toFixed(0)} %</dd>
         </dl>
         <p className={s.hint}>
           Эти параметры кейс фиксирует: высота и наклонение задают саму задачу, а общий горизонт

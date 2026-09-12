@@ -1,5 +1,6 @@
 .wrap {
   position: relative;
+  container-type: inline-size;
   width: 100%;
   height: 100%;
   background: #05070d;
@@ -8,7 +9,6 @@
   width: 100%;
   height: 100%;
 }
-.toggles,
 .legend {
   position: absolute;
   z-index: 5;
@@ -23,20 +23,113 @@
   color: #cbd5e1;
   backdrop-filter: blur(6px);
 }
-.toggles {
+.layers {
+  position: absolute;
+  z-index: 7;
   top: 0.75rem;
   left: 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.76rem;
 }
-.toggles label {
+.layers summary {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 7px;
+  background: rgba(8, 12, 22, 0.82);
   cursor: pointer;
   user-select: none;
+  backdrop-filter: blur(6px);
+  list-style: none;
+}
+.layers summary::-webkit-details-marker {
+  display: none;
+}
+.layers summary:hover,
+.layers[open] summary {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #e2e8f0;
+}
+.chevron {
+  transition: transform 150ms ease;
+}
+.layers[open] .chevron {
+  transform: rotate(180deg);
+}
+.layerMenu {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 11.5rem;
+  margin-top: 0.4rem;
+  padding: 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(8, 12, 22, 0.94);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+.layerMenu label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+.layerMenu label:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+.layerMenu input {
+  margin: 0;
+  accent-color: #38bdf8;
 }
 .legend {
   bottom: 0.75rem;
   left: 0.75rem;
+}
+.cameraControls {
+  position: absolute;
+  z-index: 6;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.4rem;
+}
+.cameraControls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 7px;
+  background: rgba(8, 12, 22, 0.82);
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.cameraControls button:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #e2e8f0;
+}
+.cameraControls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+@container (max-width: 34rem) {
+  .cameraLabel {
+    display: none;
+  }
+
+  .cameraControls button {
+    padding-inline: 0.5rem;
+  }
 }
 .legend span {
   display: flex;
@@ -72,7 +165,7 @@
 .stale {
   position: absolute;
   z-index: 6;
-  top: 0.75rem;
+  top: 3.35rem;
   right: 0.75rem;
   padding: 0.3rem 0.7rem;
   border-radius: 999px;

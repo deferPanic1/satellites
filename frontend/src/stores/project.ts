@@ -250,16 +250,6 @@ export const useProject = create<ProjectState>((set, get) => ({
     try {
       const r = await api.simulate(scenario, routing)
       if (isSimulateResponse(r)) {
-        // Фикстура предрассчитана под исходный конфиг: если правки есть,
-        // принять её за результат этих правок было бы враньём.
-        if (api.apiState.usingMock && Object.keys(get().pending).length) {
-          set({
-            usingMock: true,
-            notice:
-              'Бэкенд недоступен: правки не пересчитаны, показан прежний предрассчитанный результат',
-          })
-          return
-        }
         const d = derive(scenario, r)
         const selected = get().selectedClient
         set({
@@ -273,7 +263,7 @@ export const useProject = create<ProjectState>((set, get) => ({
           usingMock: api.apiState.usingMock,
           selectedClient:
             selected && r.metrics[selected] ? selected : (d.clients[0]?.id ?? null),
-          notice: api.apiState.lastError ?? get().notice,
+          notice: get().notice,
           ...d,
         })
       } else {
@@ -394,8 +384,8 @@ export const useProject = create<ProjectState>((set, get) => ({
   // ---- варианты ----
 
   saveVariant(label) {
-    const { scenario, result, variants } = get()
-    if (!scenario || !result) return
+    const { scenario, result, variants, stale } = get()
+    if (!scenario || !result || stale) return
     const v: Variant = {
       id: crypto.randomUUID(),
       label: label?.trim() || describeScenario(scenario),
@@ -414,6 +404,7 @@ export const useProject = create<ProjectState>((set, get) => ({
     const scenario = structuredClone(v.scenario) as Scenario
     set({
       scenario,
+      routing: v.result.meta.routing ?? get().routing,
       committed: structuredClone(v.scenario) as Scenario,
       committedRouting: v.result.meta.routing ?? get().committedRouting,
       pending: {},

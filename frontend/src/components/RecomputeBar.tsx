@@ -14,7 +14,6 @@ export function RecomputeBar() {
   const pending = useProject((x) => x.pending)
   const stale = useProject((x) => x.stale)
   const busy = useProject((x) => x.busy)
-  const usingMock = useProject((x) => x.usingMock)
   const run = useProject((x) => x.run)
   const revert = useProject((x) => x.revert)
 
@@ -24,7 +23,7 @@ export function RecomputeBar() {
   const word = plural(changes.length, 'правка', 'правки', 'правок')
 
   return (
-    <div className={s.bar} data-mock={usingMock || undefined}>
+    <div className={s.bar}>
       <div className={s.left}>
         <strong className={s.title}>
           Конфигурация изменена — {changes.length} {word}
@@ -47,12 +46,6 @@ export function RecomputeBar() {
             </span>
           ))}
         </div>
-        {usingMock && (
-          <p className={s.warn}>
-            Бэкенд недоступен: пересчитать нельзя, показан предрассчитанный результат для
-            исходной конфигурации.
-          </p>
-        )}
       </div>
 
       <div className={s.actions}>
@@ -66,7 +59,6 @@ export function RecomputeBar() {
         </Button>
         <Button
           loading={busy}
-          disabled={usingMock}
           leftSection={<IconRefresh size={14} />}
           onClick={() => void run()}
         >

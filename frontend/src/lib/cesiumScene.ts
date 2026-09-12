@@ -10,8 +10,8 @@
  * Геометрическая оговорка: модель кейса считает Землю сферой R = 6371 км,
  * а Cesium рисует эллипсоид WGS84. Расхождение до ~21 км у полюсов, то есть
  * 0.3 % радиуса — визуально незаметно. Наземные пункты ставим средствами
- * Cesium (fromDegrees), спутники — по координатам нашей модели. Все ЧИСЛА
- * для пользователя берутся с бэкенда, отсюда — никогда.
+ * Cesium (fromDegrees), спутники — по координатам нашей модели. Числовые
+ * результаты берутся из SimulateResponse, а не из объектов Cesium.
  */
 
 import * as Cesium from 'cesium'
@@ -21,9 +21,17 @@ import type { Scenario, Constants } from '../types/api'
 
 const KM = 1000
 
+const OVERVIEW = {
+  lon: 60,
+  lat: 55,
+  heightM: 14_000_000,
+}
+
+const GROUND_FOCUS_HEIGHT_M = 9_000_000
+
 const COLORS = {
-  isl: Cesium.Color.fromCssColorString('#38bdf8').withAlpha(0.35),
-  ground: Cesium.Color.fromCssColorString('#fbbf24').withAlpha(0.45),
+  isl: Cesium.Color.fromCssColorString('#38bdf8').withAlpha(0.58),
+  ground: Cesium.Color.fromCssColorString('#fbbf24').withAlpha(0.68),
   route: Cesium.Color.fromCssColorString('#4ade80'),
   satActive: Cesium.Color.fromCssColorString('#e2e8f0'),
   satInactive: Cesium.Color.fromCssColorString('#64748b'),
@@ -48,6 +56,7 @@ const STALE = {
 }
 
 export interface SceneOptions {
+  showRoute?: boolean
   showLabels?: boolean
   showOrbits?: boolean
   showIsl?: boolean
@@ -135,9 +144,15 @@ export class ConstellationScene {
       this.satClickCb?.(typeof id === 'string' && this.satIndex.has(id) ? id : null)
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK)
 
-    this.viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(60, 55, 24_000_000),
-    })
+    // Viewer по умолчанию ставит на двойной клик слежение за Entity и
+    // максимально приближает камеру. Для наземных пунктов это неожиданно:
+    // пользователь теряет общий контекст, а камера остаётся привязанной к
+    // выбранной точке. Навигацией управляем только своими явными действиями.
+    this.viewer.screenSpaceEventHandler.removeInputAction(
+      Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK,
+    )
+
+    this.resetView(false)
   }
 
   onSatelliteClick(cb: (id: string | null) => void) {
@@ -227,7 +242,7 @@ export class ConstellationScene {
     const inactive: ReadonlySet<string> =
       inactiveArg ?? (step ? new Set(step.inactive) : new Set<string>())
     // маршрут — результат расчёта; пока он устарел, аппараты по нему не подсвечиваем
-    const onRoute = route && !stale ? new Set(route) : new Set<string>()
+    const onRoute = route && !stale && options.showRoute !== false ? new Set(route) : new Set<string>()
 
     for (let i = 0; i < this.points.length; i++) {
       const p = this.points.get(i)
@@ -279,7 +294,7 @@ export class ConstellationScene {
     }
 
     const routeEdges = new Set<string>()
-    if (route) {
+    if (route && options.showRoute !== false) {
       for (let i = 0; i < route.length - 1; i++) {
         routeEdges.add(`${route[i]}|${route[i + 1]}`)
         routeEdges.add(`${route[i + 1]}|${route[i]}`)
@@ -301,7 +316,9 @@ export class ConstellationScene {
 
         const line = ensure()
         line.positions = [pa, pb]
-        line.width = 1
+        // Обычная сеть должна читаться на фоне Земли, но найденный маршрут
+        // остаётся вдвое толще и полностью непрозрачным.
+        line.width = 2
         line.material = Cesium.Material.fromType('Color', {
           color: isIsl ? (stale ? STALE.isl : COLORS.isl) : stale ? STALE.ground : COLORS.ground,
         })
@@ -310,7 +327,7 @@ export class ConstellationScene {
       }
     }
 
-    if (route && route.length > 1) {
+    if (route && route.length > 1 && options.showRoute !== false) {
       for (let i = 0; i < route.length - 1; i++) {
         const pa = this.posOf(route[i])
         const pb = this.posOf(route[i + 1])
@@ -379,10 +396,38 @@ export class ConstellationScene {
   flyToGround(id: string) {
     const site = this.ground.find((g) => g.id === id)
     if (!site) return
+
+    this.viewer.trackedEntity = undefined
     this.viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(site.lon_deg, site.lat_deg, 9_000_000),
+      destination: Cesium.Cartesian3.fromDegrees(
+        site.lon_deg,
+        site.lat_deg,
+        GROUND_FOCUS_HEIGHT_M,
+      ),
+      // Явная ориентация вниз по местной вертикали удерживает Землю в центре,
+      // независимо от того, под каким углом пользователь смотрел до перелёта.
+      orientation: {
+        heading: 0,
+        pitch: -Cesium.Math.PI_OVER_TWO,
+        roll: 0,
+      },
       duration: 1.2,
     })
+  }
+
+  /** Вернуть устойчивый общий вид без привязки камеры к объекту. */
+  resetView(animated = true) {
+    this.viewer.trackedEntity = undefined
+    const view = {
+      destination: Cesium.Cartesian3.fromDegrees(OVERVIEW.lon, OVERVIEW.lat, OVERVIEW.heightM),
+      orientation: {
+        heading: 0,
+        pitch: -Cesium.Math.PI_OVER_TWO,
+        roll: 0,
+      },
+    }
+    if (animated) this.viewer.camera.flyTo({ ...view, duration: 1.0 })
+    else this.viewer.camera.setView(view)
   }
 
   resize() {

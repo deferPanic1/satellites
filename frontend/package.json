@@ -8,7 +8,8 @@
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "check": "python3 tests/dump_reference.py > /tmp/ref.json && node tests/orbital.check.mjs /tmp/ref.json"
+    "check": "python3 tests/dump_reference.py > /tmp/ref.json && node tests/orbital.check.mjs /tmp/ref.json",
+    "check:local": "vite build --ssr tests/localSimulator.check.ts --outDir /tmp/cosmo-local-check --emptyOutDir && node /tmp/cosmo-local-check/localSimulator.check.js"
   },
   "dependencies": {
     "@mantine/core": "^9.6.1",
