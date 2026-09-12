@@ -12,7 +12,7 @@ DATA_DIR = (
     / 'Данные'
 )
 
-router = fastapi.APIRouter(prefix='scenarios')
+router = fastapi.APIRouter(prefix='/scenarios')
 
 
 @router.get('/')
