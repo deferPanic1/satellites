@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Progress, Select, Tabs } from '@mantine/core'
+import { Alert, Button, Menu, Progress, Select, Tabs } from '@mantine/core'
 import { useHotkeys } from '@mantine/hooks'
 import {
   IconChartBar,
+  IconCheck,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconColumns2,
+  IconFileImport,
   IconRoute,
   IconSettings,
   IconUpload,
@@ -19,14 +22,23 @@ import { VariantsPanel } from './components/VariantsPanel'
 import { CompareModal } from './components/CompareModal'
 import { RecomputeBar } from './components/RecomputeBar'
 import { useProject } from './stores/project'
+import type { ScenarioListItem } from './types/api'
 import s from './App.module.css'
 
-const BUILTIN = [
-  { label: '01 · Полная группировка', value: '01_full_constellation' },
-  { label: '02 · Первая очередь', value: '02_first_launch' },
-  { label: '03 · Отказ 10 аппаратов', value: '03_satellite_outages' },
-  { label: '04 · ISL 2000 км', value: '04_link_range' },
-]
+/** «01 · Полная группировка» — номер из id, чтобы порядок читался без сортировки. */
+function optionLabel(item: ScenarioListItem) {
+  const number = item.id.match(/^\d+/)?.[0]
+  return number ? `${number} · ${item.title}` : item.title
+}
+
+/** Чем этот сценарий отличается от соседнего — видно до его загрузки. */
+function optionHint(item: ScenarioListItem) {
+  const parts: string[] = []
+  if (item.launch_stage != null) parts.push(`очередь ${item.launch_stage}`)
+  if (item.isl_range_km != null) parts.push(`ISL ${item.isl_range_km} км`)
+  if (item.n_failures) parts.push(`отказов: ${item.n_failures}`)
+  return parts.join(' · ')
+}
 
 /** Состояние панелей переживает перезагрузку: разметка — привычка, а не настройка сценария. */
 function useStickyFlag(key: string, initial: boolean) {
@@ -54,17 +66,15 @@ export function App() {
   const notice = useProject((x) => x.notice)
   const errors = useProject((x) => x.errors)
   const warnings = useProject((x) => x.warnings)
-  const clients = useProject((x) => x.clients)
-  const selectedClient = useProject((x) => x.selectedClient)
-  const setSelectedClient = useProject((x) => x.setSelectedClient)
   const loadBuiltin = useProject((x) => x.loadBuiltin)
+  const builtins = useProject((x) => x.builtins)
+  const loadBuiltins = useProject((x) => x.loadBuiltins)
   const loadFile = useProject((x) => x.loadFile)
   const variants = useProject((x) => x.variants)
   const openCompare = useProject((x) => x.openCompare)
 
   // Сценарий не подставляется сам: пока пользователь не выбрал файл,
   // считать нечего. Расчёт запускается загрузкой, как описывает кейс.
-  const [builtin, setBuiltin] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const [leftOpen, setLeftOpen] = useStickyFlag('ui.panel.left', true)
@@ -84,6 +94,11 @@ export function App() {
     setRightOpen(true)
   }
 
+  // Набор кейса тянем один раз: он не меняется в течение сессии.
+  useEffect(() => {
+    void loadBuiltins()
+  }, [loadBuiltins])
+
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (f) void loadFile(f)
@@ -92,9 +107,19 @@ export function App() {
 
   function pickBuiltin(v: string | null) {
     if (!v) return
-    setBuiltin(v)
     void loadBuiltin(v)
   }
+
+  /**
+   * Какой из сценариев набора открыт сейчас — берём из самого сценария,
+   * а не из отдельного состояния выбора: после загрузки своего файла
+   * отдельное состояние рассинхронизировалось бы с тем, что на экране.
+   */
+  const builtinId = scenario && builtins.some((b) => b.id === scenario.meta.id)
+    ? scenario.meta.id
+    : null
+  const isCustom = Boolean(scenario) && builtinId === null
+
 
   return (
     <div className={s.app}>
@@ -103,26 +128,72 @@ export function App() {
           <span className={s.logo}>◎</span>
           <div>
             <h1>Проектирование спутниковой группировки</h1>
-            {scenario && <p>{scenario.meta.title}</p>}
           </div>
         </div>
 
+        {/*
+          Один источник проекта вместо двух контролов.
+          Раньше рядом стояли список сценариев набора и кнопка «Загрузить JSON»,
+          и связь между ними была неочевидна: непонятно, это две разные вещи или
+          одна. Теперь это одно меню «откуда взят проект», где набор кейса и свой
+          файл — пункты одного выбора, а в кнопке видно текущий ответ.
+
+          Пока проект не загружен, меню не показываем: тот же выбор уже стоит
+          в центре стартового экрана двумя большими кнопками.
+        */}
         <div className={s.actions}>
-          <Select
-            value={builtin}
-            data={BUILTIN}
-            placeholder="сценарий из набора"
-            allowDeselect={false}
-            w="14rem"
-            onChange={pickBuiltin}
-          />
-          <Button
-            variant="outline"
-            leftSection={<IconUpload size={14} />}
-            onClick={() => fileInput.current?.click()}
-          >
-            Загрузить JSON
-          </Button>
+          {scenario && (
+            <Menu shadow="md" width={278} position="bottom-end" withinPortal>
+              <Menu.Target>
+                <Button
+                  variant="default"
+                  leftSection={<IconFileImport size={15} />}
+                  rightSection={<IconChevronDown size={14} />}
+                  className={s.source}
+                >
+                  {scenario.meta.title}
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>Из набора кейса</Menu.Label>
+                {builtins.map((b) => (
+                  <Menu.Item
+                    key={b.id}
+                    leftSection={
+                      builtinId === b.id ? (
+                        <IconCheck size={14} />
+                      ) : (
+                        <span className={s.checkGap} />
+                      )
+                    }
+                    onClick={() => pickBuiltin(b.id)}
+                  >
+                    {optionLabel(b)}
+                    <span className={s.optionHint}>{optionHint(b)}</span>
+                  </Menu.Item>
+                ))}
+
+                <Menu.Divider />
+
+                {isCustom && (
+                  <>
+                    <Menu.Label>Загруженный файл</Menu.Label>
+                    <Menu.Item leftSection={<IconCheck size={14} />} disabled>
+                      {scenario.meta.title}
+                    </Menu.Item>
+                  </>
+                )}
+                <Menu.Item
+                  leftSection={<IconUpload size={14} />}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  Загрузить свой JSON…
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )}
+
+          {/* Скрытое поле нужно и стартовому экрану, поэтому вне условия. */}
           <input
             ref={fileInput}
             type="file"
@@ -130,17 +201,6 @@ export function App() {
             hidden
             onChange={onFile}
           />
-
-          {clients.length > 0 && (
-            <Select
-              value={selectedClient}
-              data={clients.map((c) => c.id)}
-              placeholder="пункт"
-              allowDeselect={false}
-              w="7rem"
-              onChange={setSelectedClient}
-            />
-          )}
         </div>
       </header>
 
@@ -158,7 +218,7 @@ export function App() {
           </p>
           <div className={s.startActions}>
             <Select
-              data={BUILTIN}
+              data={builtins.map((b) => ({ value: b.id, label: optionLabel(b) }))}
               placeholder="выбрать из набора кейса"
               allowDeselect={false}
               size="sm"
@@ -267,7 +327,7 @@ export function App() {
                   <MetricsPanel />
                 </Tabs.Panel>
                 <Tabs.Panel value="inspect">
-                  <InspectorPanel />
+                  <InspectorPanel onPickClient={() => setRightTab('metrics')} />
                 </Tabs.Panel>
                 <Tabs.Panel value="variants">
                   <VariantsPanel />

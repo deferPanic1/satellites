@@ -36,12 +36,6 @@ export const LINK = {
   gap: '#d03b3b',
 } as const
 
-export const STATUS = {
-  good: '#0ca30c',
-  warning: '#fab219',
-  critical: '#d03b3b',
-} as const
-
 /** Хром графиков берём из палитры приложения, чтобы панели и графики
  *  читались как одна система. */
 export const INK = {
@@ -79,16 +73,7 @@ export function fmtClock(sec: number): string {
 }
 
 export function fmtPct(v: number, digits = 2): string {
-  return `${v.toFixed(digits)} %`
-}
-
-/** Знаковая дельта в процентных пунктах. */
-export function fmtDelta(v: number, digits = 2): string {
-  return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`
-}
-
-export function fmtKm(v: number | null): string {
-  return v === null ? '—' : `${Math.round(v).toLocaleString('ru-RU')} км`
+  return `${v.toFixed(digits)}%`
 }
 
 /** Русские склонения при числительном: 1 перерыв, 2 перерыва, 5 перерывов. */
@@ -98,25 +83,6 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (m10 === 1 && m100 !== 11) return one
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few
   return many
-}
-
-/** Длина маршрута словами: «3 перехода», «5 переходов». */
-export function hopsWord(n: number): string {
-  return `${n} ${plural(n, 'переход', 'перехода', 'переходов')}`
-}
-
-/**
- * Подписи корзин длительности перерыва. Считаются от шага расчётной сетки:
- * в наборе кейса шаг 120 с, но сетку задаёт сценарий, а не мы.
- */
-export function bucketLabels(stepS: number): [string, string, string, string] {
-  const m = (k: number) => Math.round((k * stepS) / 60)
-  return [
-    `до ${m(1)} мин`,
-    `${m(2)}–${m(4)} мин`,
-    `${m(5)}–${m(10)} мин`,
-    `больше ${m(10)} мин`,
-  ]
 }
 
 // ---------- причины отсутствия маршрута ----------

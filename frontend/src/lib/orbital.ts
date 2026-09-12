@@ -175,17 +175,3 @@ export function elevationDeg(
   const dot = (dx * ground.x + dy * ground.y + dz * ground.z) / (dist * rEarth)
   return (Math.asin(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI
 }
-
-/** Полезные производные величины — для панели «о группировке». */
-export function derivedFacts(model: OrbitalModel) {
-  const period = (2 * Math.PI) / model.n
-  return {
-    orbitRadiusKm: model.r,
-    altitudeKm: model.r - R_EARTH_KM,
-    speedKmS: Math.sqrt(MU_KM3_S2 / model.r),
-    periodS: period,
-    periodMin: period / 60,
-    revsPerDay: 86400 / period,
-    meanMotionDegS: (model.n * 180) / Math.PI,
-  }
-}

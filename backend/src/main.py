@@ -1,10 +1,9 @@
 import fastapi
 import fastapi.middleware.gzip
 
-import src.api.validation_router
 import src.api.scenarios_router
 import src.api.simulation_router
-
+import src.api.validation_router
 
 MIN_COMPRESSION_THRESHHOLD: int = 1000
 

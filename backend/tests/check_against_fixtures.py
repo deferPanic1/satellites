@@ -1,7 +1,7 @@
 """
 Сверка ответа /api/simulate с эталонными фикстурами фронта.
 
-frontend/public/mock/simulate-*.json — четыре полных суточных расчёта по
+frontend/tests/fixtures/simulate-*.json — четыре полных суточных расчёта по
 720 отсчётов, собранные независимой реализацией (localSimulator.ts).
 Сверяются рёбра сети, маршруты, причины перерывов, перерывы, метрики,
 константы и сводка — то есть весь ответ, а не только итоговые проценты.
@@ -24,7 +24,7 @@ import urllib.request
 
 ROOT = pathlib.Path(__file__).parent.parent.parent
 DATA_DIR = ROOT / 'case' / 'Данные'
-FIXTURE_DIR = ROOT / 'frontend' / 'public' / 'mock'
+FIXTURE_DIR = ROOT / 'frontend' / 'tests' / 'fixtures'
 
 SCENARIOS = (
     '01_full_constellation',

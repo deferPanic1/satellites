@@ -13,7 +13,7 @@ const comparedFields = ['constants', 'nodes', 'steps', 'routes', 'reasons', 'met
 
 for (const id of ids) {
   const scenario = readJson<Scenario>(resolve('../case/Данные', `${id}.json`))
-  const expected = readJson<SimulateResponse>(resolve('public/mock', `simulate-${id}.json`))
+  const expected = readJson<SimulateResponse>(resolve('tests/fixtures', `simulate-${id}.json`))
   const actual = simulateLocally(scenario)
 
   for (const field of comparedFields) {

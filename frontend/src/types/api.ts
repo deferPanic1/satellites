@@ -92,6 +92,10 @@ export interface ValidationReport {
   summary: ScenarioSummary | null
   errors: FieldError[]
   warnings: FieldError[]
+  /** Стратегия восстанавливается из notes выгрузки результата. */
+  routing?: RoutingMode
+  /** Файл был выгрузкой результата (cosmo-A-result-1.0), а не голым сценарием. */
+  fromResult?: boolean
 }
 
 // ---------- результат расчёта ----------
@@ -199,15 +203,6 @@ export interface ScenarioListItem {
   launch_stage?: number
   isl_range_km?: number
   n_failures?: number
-}
-
-export interface RouteLeg {
-  from: string
-  to: string
-  type: 'uplink' | 'isl' | 'downlink'
-  distance_km: number
-  elevation_deg?: number
-  inter_plane?: boolean
 }
 
 /** Сохранённый вариант проекта. Живёт только на фронте — сервер без состояния. */
