@@ -1,9 +1,10 @@
 import collections
 import dataclasses
 import enum
+import heapq
 
 
-__all__ = ['get_min_hopes_stat']
+__all__ = ['get_min_hopes_stat', 'get_min_distance_stat']
 
 
 class VertexType(enum.Enum):
@@ -30,7 +31,7 @@ class Vertex(str):
         return vertex_id2vertex_type(self)
 
 
-def edges2list_con(
+def edges2adj_list(
     edges: list[tuple[Vertex, Vertex]],
 ) -> dict[Vertex, list[Vertex]]:
     d = collections.defaultdict(list)
@@ -45,7 +46,7 @@ def edges2list_con(
 class ProcessedClient:
     id_client: str
     is_connected: bool
-    optimal_path: list[Vertex] | None
+    optimal_path: tuple[Vertex, ...] | None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -61,13 +62,50 @@ class DistanceProcessedClient(ProcessedClient):
 EdgesWithDistance = tuple[str, str, float]
 
 
+def restore_route(
+    start_vertex: Vertex,
+    adj_list: dict[Vertex, list[Vertex]],
+    optimal_dis: dict[Vertex, float | int],
+    distances: dict[Vertex, dict[Vertex, float | int]],
+) -> list[Vertex]:
+    optimal_path: list[Vertex] = [start_vertex]
+    now_vertex = start_vertex
+    while now_vertex.type_vertex != VertexType.gateway:
+        min_next_vertex: Vertex | None = None
+        for next_vertex in adj_list[now_vertex]:
+            if (
+                abs(
+                    optimal_dis[next_vertex]
+                    + distances[now_vertex][next_vertex]
+                    - optimal_dis[now_vertex]
+                ) > 10 ** -4
+                or now_vertex == next_vertex
+            ):
+                continue
+
+            min_next_vertex = next_vertex
+            break
+
+        if min_next_vertex is None:
+            raise ValueError('"optimal_dis" has calculation errors.')
+
+        now_vertex = min_next_vertex
+        optimal_path.append(min_next_vertex)
+
+    return optimal_path
+
+
 def get_min_hopes_stat(
     edges_with_distance: list[EdgesWithDistance],
 ) -> list[HopesProcessedClient]:
+    """
+    Find paths with the minimum number of edges from
+    each client to the gateway.
+    """
     edges = [(Vertex(s1), Vertex(s2)) for s1, s2, _ in edges_with_distance]
-    d = edges2list_con(edges)
+    adj_list = edges2adj_list(edges)
 
-    vertexes = list(set(d.keys()))
+    vertexes = list(set(adj_list.keys()))
     vertex2min_hops: dict[Vertex, int] = collections.defaultdict(lambda: -1)
     deque: collections.deque[tuple[Vertex, int]] = collections.deque()
     for now_vertex in vertexes:
@@ -83,26 +121,25 @@ def get_min_hopes_stat(
             continue
 
         vertex2min_hops[vertex] = hops
-        for next_vertex in d[vertex]:
+        for next_vertex in adj_list[vertex]:
             deque.append((next_vertex, hops + 1))
-
-    # clients = [
-    #     vertex
-    #     for vertex in vertexes
-    #     if vertex.type_vertex == VertexType.client
-    # ]
-    # for now_client in clients:
-    #     optimal_path: list[Vertex] = [now_client]
-    #     now_vertex = now_client
-    #     while now_vertex.type_vertex != 
-    #     for _ in range(vertex2min_hops[now_client]):
-    #         for next_vertex in d[]
 
     return [
         HopesProcessedClient(
-            id_client=str(vertex),
+            id_client=vertex,
             is_connected=vertex2min_hops[vertex] != -1,
-            optimal_path=[Vertex('G_MUR'), Vertex('S20'), vertex],
+            optimal_path=(
+                None
+                if vertex2min_hops[vertex] == -1
+                else tuple(restore_route(
+                    vertex,
+                    adj_list,
+                    vertex2min_hops,
+                    collections.defaultdict(
+                        lambda: collections.defaultdict(lambda: 1),
+                    ),
+                ))
+            ),
             min_hopes=(
                 None
                 if vertex2min_hops[vertex] == -1
@@ -117,157 +154,215 @@ def get_min_hopes_stat(
 def get_min_distance_stat(
     edges_with_distance: list[EdgesWithDistance],
 ) -> list[DistanceProcessedClient]:
+    """
+    Find the paths with the minimum total distance from
+    each client to the gateway.
+    """
+    edges = [
+        (Vertex(s1), Vertex(s2), distance)
+        for s1, s2, distance in edges_with_distance
+    ]
+    distances: dict[Vertex, dict[Vertex, float]] = collections.defaultdict(
+        lambda: collections.defaultdict(lambda: -1),
+    )
+    for v1, v2, now_dis in edges:
+        distances[v1][v2] = now_dis
+        distances[v2][v1] = now_dis
+
+    adj_list = edges2adj_list([(v1, v2) for v1, v2, _ in edges])
+
+    vertexes = list(set(adj_list.keys()))
+    gateways = [
+        vertex
+        for vertex in vertexes
+        if vertex.type_vertex == VertexType.gateway
+    ]
+    vertex2min_distance: dict[Vertex, float] = collections.defaultdict(
+        lambda: -1,
+    )
+    for now_gateway in gateways:
+        vertex2min_distance[now_gateway] = 0
+        heap_edges: list[tuple[float, str, str]] = []
+        for next_vertex in adj_list[now_gateway]:
+            heap_edges.append((
+                distances[now_gateway][next_vertex],
+                now_gateway,
+                next_vertex,
+            ))
+
+        was: set[Vertex] = {now_gateway}
+        heapq.heapify(heap_edges)
+        while heap_edges:
+            dis, v1, v2 = heapq.heappop(heap_edges)
+            if v2 in was:
+                continue
+
+            was.add(v2)
+            if v2 in vertex2min_distance:
+                vertex2min_distance[v2] = min(vertex2min_distance[v2], dis)
+            else:
+                vertex2min_distance[v2] = dis
+
+            for next_vertex in adj_list[v2]:
+                heapq.heappush(
+                    heap_edges,
+                    (dis + distances[v2][next_vertex], v2, next_vertex),
+                )
+
     return [
         DistanceProcessedClient(
-            id_client='S01',
-            is_connected=True,
-            optimal_path=[Vertex('G_MUR'), Vertex('S20'), Vertex('C72')],
-            min_distance=1123.1,
-        ),
+            id_client=vertex,
+            is_connected=vertex2min_distance[vertex] != -1,
+            optimal_path=(
+                None
+                if vertex2min_distance[vertex] == -1
+                else tuple(restore_route(
+                    vertex,
+                    adj_list,
+                    vertex2min_distance,
+                    distances,
+                ))
+            ),
+            min_distance=(
+                None
+                if vertex2min_distance[vertex] == -1
+                else vertex2min_distance[vertex]
+            ),
+        )
+        for vertex in vertexes
+        if vertex.type_vertex == VertexType.client
     ]
 
 
 if __name__ == '__main__':
-    pass
-    # tests: list[tuple] = [
-    #     # Пример 1: Морские кабели (ISL) и наземные линии
-    #     (
-    #         [
-    #             ['S01', 'S02', 2700.4402373472476],    # ISL
-    #             ['S01', 'S20', 2700.4402373472460],    # ISL
-    #             ['G_MUR', 'S20', 1260.1933200301964],  # наземная линия
-    #             ['C72', 'S02', 1690.7468031879637],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C72', True, 4),
-    #         ],
-    #     ),
+    tests = [
+        (
+            [
+                ('C01', 'S01', 10.0),
+                ('S01', 'S02', 20.0),
+                ('S02', 'G01', 30.0),
+            ],
+            {'C01': 3},
+            {'C01': 60.0},
+        ),
+        (
+            [
+                ('C01', 'S01', 10.0),
+                ('S01', 'S02', 100.0),
+                ('S02', 'G01', 10.0),
+                ('S01', 'S03', 20.0),
+                ('S03', 'G01', 20.0),
+            ],
+            {'C01': 3},
+            {'C01': 50.0},
+        ),
+        (
+            [
+                ('C01', 'S01', 10.0),
+                ('S01', 'S02', 10.0),
+                ('S02', 'G01', 10.0),
+                ('S01', 'S03', 1.0),
+                ('S03', 'S04', 1.0),
+                ('S04', 'S05', 1.0),
+                ('S05', 'G01', 1.0),
+            ],
+            {'C01': 3},
+            {'C01': 14.0},
+        ),
+        (
+            [
+                ('C01', 'S01', 5.0),
+                ('C02', 'S02', 7.0),
+                ('S01', 'S02', 10.0),
+                ('S01', 'G01', 20.0),
+                ('S02', 'G01', 30.0),
+            ],
+            {
+                'C01': 2,
+                'C02': 2,
+            },
+            {
+                'C01': 25.0,
+                'C02': 37.0,
+            },
+        ),
+        (
+            [
+                ('C01', 'S01', 10.0),
+                ('S01', 'G01', 20.0),
+                ('C02', 'S99', 10.0),
+            ],
+            {
+                'C01': 2,
+                'C02': None,
+            },
+            {
+                'C01': 30.0,
+                'C02': None,
+            },
+        ),
 
-    #     # Пример 2: Смешанный кластер с несколькими точками присутствия
-    #     (
-    #         [
-    #             ['S05', 'S06', 1840.5523112890412],    # ISL
-    #             ['S05', 'S07', 3210.8874451002231],    # ISL
-    #             ['S06', 'S07', 2950.1178234417905],    # ISL
-    #             ['G_LON', 'S05', 780.3341287495012],   # наземная линия
-    #             ['G_FRA', 'S06', 1120.9986543210987],  # наземная линия
-    #             ['C31', 'S07', 2450.6678901234567],    # наземная линия
-    #             ['C45', 'S05', 1980.2233445566778],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C31', True, 3),
-    #             ProcessedClient('C45', True, 2),
-    #         ],
-    #     ),
+        # Два разных маршрута с одинаковым количеством hops.
+        (
+            [
+                ('C01', 'S01', 10.0),
+                ('S01', 'S02', 10.0),
+                ('S02', 'G01', 10.0),
 
-    #     # Пример 3: Трансконтинентальные маршруты
-    #     (
-    #         [
-    #             ['S10', 'S11', 4500.7788990011223],    # ISL
-    #             ['S10', 'S12', 5100.3344556677889],    # ISL
-    #             ['S11', 'S13', 3890.1122334455667],    # ISL
-    #             ['S12', 'S13', 2780.9988776655443],    # ISL
-    #             ['G_NYC', 'S10', 890.5544332211001],   # наземная линия
-    #             ['G_TYO', 'S11', 1340.6677889900112],  # наземная линия
-    #             ['G_SYD', 'S12', 2100.4433221100998],  # наземная линия
-    #             ['C88', 'S13', 1670.5566778899002],    # наземная линия
-    #             ['C91', 'S11', 2450.1234567890123],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C88', True, 3),
-    #             ProcessedClient('C91', True, 2),
-    #         ],
-    #     ),
+                ('S01', 'S03', 20.0),
+                ('S03', 'G01', 20.0),
+            ],
+            {'C01': 3},
+            {'C01': 30.0},
+        ),
 
-    #     # Пример 4: Плотная сеть с одной центральной точкой
-    #     (
-    #         [
-    #             ['S30', 'S31', 1200.1112223334445],    # ISL
-    #             ['S30', 'S32', 1350.4445556667778],    # ISL
-    #             ['S30', 'S33', 980.7778889990001],     # ISL
-    #             ['S30', 'S34', 1120.2223334445556],    # ISL
-    #             ['G_AMS', 'S30', 450.6667778889990],   # наземная линия
-    #             ['G_PAR', 'S31', 670.3334445556667],   # наземная линия
-    #             ['G_ROM', 'S32', 890.1112223334445],   # наземная линия
-    #             ['C12', 'S33', 1450.5556667778889],    # наземная линия
-    #             ['C19', 'S34', 1780.8889990001112],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C12', True, 3),
-    #             ProcessedClient('C19', True, 3),
-    #         ],
-    #     ),
+        # Два разных маршрута с одинаковой дистанцией.
+        (
+            [
+                ('C01', 'S01', 10.0),
+                ('S01', 'S02', 20.0),
+                ('S02', 'G01', 30.0),
 
-    #     # Пример 5: Резервные (backup) маршруты
-    #     (
-    #         [
-    #             ['S50', 'S51', 3300.1234567890123],    # ISL
-    #             ['S51', 'S52', 2100.9876543210987],    # ISL
-    #             ['S50', 'S52', 4250.5555555555555],    # ISL (длинный путь)
-    #             ['G_HKG', 'S50', 750.4444444444444],   # наземная линия
-    #             ['G_SIN', 'S51', 980.3333333333333],   # наземная линия
-    #             ['G_SEL', 'S52', 1620.2222222222222],  # наземная линия
-    #             ['C03', 'S50', 1190.1111111111111],    # наземная линия
-    #             ['C07', 'S52', 2050.0000000000000],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C03', True, 2),
-    #             ProcessedClient('C07', True, 2),
-    #         ],
-    #     ),
+                ('S01', 'S03', 15.0),
+                ('S03', 'G01', 45.0),
+            ],
+            {'C01': 3},
+            {'C01': 60.0},
+        ),
+    ]
 
-    #     # Пример 6: много успешно подключённых клиентов
-    #     (
-    #         [
-    #             ['S60', 'S61', 100.0],   # ISL
-    #             ['S61', 'S62', 100.0],   # ISL
-    #             ['S60', 'S62', 150.0],   # ISL
-    #             ['G_AAA', 'S60', 50.0],  # наземная линия
-    #             ['G_BBB', 'S62', 60.0],  # наземная линия
-    #             ['C01', 'S60', 20.0],    # наземная линия
-    #             ['C02', 'S61', 30.0],    # наземная линия
-    #             ['C03', 'S62', 40.0],    # наземная линия
-    #             ['C04', 'S61', 25.0],    # наземная линия
-    #             ['C05', 'S60', 15.0],    # наземная линия
-    #             ['C06', 'S61', 35.0],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C01', True, 2),
-    #             ProcessedClient('C02', True, 3),
-    #             ProcessedClient('C03', True, 2),
-    #             ProcessedClient('C04', True, 3),
-    #             ProcessedClient('C05', True, 2),
-    #             ProcessedClient('C06', True, 3),
-    #         ],
-    #     ),
+    for ind, (data, true_hopes, true_distance) in enumerate(
+        tests,
+        start=1,
+    ):
+        pred_hopes = get_min_hopes_stat(data)
+        pred_distance = get_min_distance_stat(data)
 
-    #     # Пример 7: 0 успешно подключённых клиентов
-    #     (
-    #         [
-    #             ['S70', 'S71', 100.0],   # ISL
-    #             ['S71', 'S72', 100.0],   # ISL
-    #             ['G_XXX', 'S99', 50.0],  # наземная линия
-    #             ['C10', 'S70', 20.0],    # наземная линия
-    #             ['C11', 'S71', 30.0],    # наземная линия
-    #             ['C12', 'S72', 40.0],    # наземная линия
-    #         ],
-    #         [
-    #             ProcessedClient('C10', False, None),
-    #             ProcessedClient('C11', False, None),
-    #             ProcessedClient('C12', False, None),
-    #         ],
-    #     ),
-    # ]
-    # for ind, (data, true_ans) in enumerate(tests, start=1):
-    #     pred_ans = get_min_hopes_stat(data)
-    #     if set(pred_ans) == set(true_ans):
-    #         continue
+        pred_hopes = {
+            client.id_client: client.min_hopes
+            for client in pred_hopes
+        }
+        pred_distance = {
+            client.id_client: client.min_distance
+            for client in pred_distance
+        }
 
-    #     print(
-    #         f'Test {ind} - failed'
-    #         f'\nPred ans: {pred_ans}'
-    #         f'\nTrue ans: {true_ans}'
-    #     )
-    #     break
-    # else:
-    #     print('Tests passed...')
+        if pred_hopes != true_hopes:
+            print(
+                f'Test {ind} - hops failed'
+                f'\nPred ans: {pred_hopes}'
+                f'\nTrue ans: {true_hopes}'
+            )
+            break
+
+        if pred_distance != true_distance:
+            print(
+                f'Test {ind} - distance failed'
+                f'\nPred ans: {pred_distance}'
+                f'\nTrue ans: {true_distance}'
+            )
+            break
+
+        print(f'Test {ind}: passed')
+    else:
+        print('Tests passed...')
