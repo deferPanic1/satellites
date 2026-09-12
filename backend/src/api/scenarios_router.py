@@ -15,7 +15,7 @@ DATA_DIR = (
 router = fastapi.APIRouter(prefix='/scenarios')
 
 
-@router.get('/')
+@router.get('/', response_model=None)
 def get_all_base_scenarios() -> list[src.schemas.scenario.ScenarioListItem]:
     all_scenarios = [
         msgspec.json.decode(
@@ -24,32 +24,36 @@ def get_all_base_scenarios() -> list[src.schemas.scenario.ScenarioListItem]:
         )
         for path_to_scenario in DATA_DIR.iterdir()
     ]
-    return [
+    all_scenario_item = [
         src.schemas.scenario.ScenarioListItem(
             id=scenario.meta['id'],
             title=scenario.meta['title'],
         )
         for scenario in all_scenarios
     ]
-
-
-@router.get('/{id}')
-def get_base_scenario(id: str) -> src.schemas.scenario.ScenarioListItem:
-    path_to_base_scenario = DATA_DIR / f'{id}.json'
-    if path_to_base_scenario.exists():
-        return msgspec.json.decode(
-            path_to_base_scenario.read_text(encoding='utf-8'),
-            type=src.schemas.scenario.Scenario,
-        )
-
-    return fastapi.HTTPException(
-        status_code=404,
-        detail='Сценарий с таким id не найден',
+    return fastapi.Response(
+        content=msgspec.json.encode(all_scenario_item), 
+        media_type='application/json',
     )
 
 
-@router.post('/upload')
-def upload_scenario(
-    scenario: src.schemas.scenario.Scenario,
-) -> src.schemas.scenario.ValidationReport:
-    return src.services.validator.validate_scenario(scenario)
+# @router.get('/{id}', response_model=None)
+# def get_base_scenario(id: str) -> src.schemas.scenario.ScenarioListItem:
+#     path_to_base_scenario = DATA_DIR / f'{id}.json'
+#     if path_to_base_scenario.exists():
+#         return msgspec.json.decode(
+#             path_to_base_scenario.read_text(encoding='utf-8'),
+#             type=src.schemas.scenario.Scenario,
+#         )
+
+#     return fastapi.HTTPException(
+#         status_code=404,
+#         detail='Сценарий с таким id не найден',
+#     )
+
+
+# @router.post('/upload', response_model=None)
+# def upload_scenario(
+#     scenario: src.schemas.scenario.Scenario,
+# ) -> src.services.validator.ValidationResponse:
+#     return src.services.validator.validate_scenario(scenario)
